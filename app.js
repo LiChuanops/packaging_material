@@ -426,7 +426,7 @@ async function savePhotoToDB(productId, imageData, oldPhotoUrl = null) {
             if (row) {
                 const photoCell = row.querySelector('td:last-child');
                 if (photoCell) {
-                    photoCell.textContent = 'Waiting for Upload';
+                    photoCell.textContent = 'Waiting Sync';
                     photoCell.classList.add('pending-upload');
                 }
             }
