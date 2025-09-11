@@ -19,7 +19,7 @@ const closeButton = document.querySelector('.close-button');
 // --- SUPABASE CLIENT ---
 // The createClient function doesn't throw an error for invalid credentials.
 // Errors will be caught when the first API call is made.
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 
 // --- STATE ---
@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
         statusMessage.textContent = "Warning: Offline storage is not supported on this browser.";
     }
 
-    if (supabase) {
+    if (supabaseClient) {
         // Initial data fetch
         fetchProducts();
     }
@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function fetchProducts() {
     statusMessage.textContent = 'Loading products...';
     try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('packaging_material')
             .select('*')
             .order('created_at', { ascending: false });
@@ -279,7 +279,7 @@ async function syncPendingPhotos() {
             const filePath = `public/${photo.productId}_${Date.now()}.jpg`;
 
             // 1. Upload to Storage
-            const { error: uploadError } = await supabase.storage
+            const { error: uploadError } = await supabaseClient.storage
                 .from('packaging_photo')
                 .upload(filePath, blob);
 
@@ -288,7 +288,7 @@ async function syncPendingPhotos() {
             }
 
             // 2. Get Public URL
-            const { data: urlData } = supabase.storage
+            const { data: urlData } = supabaseClient.storage
                 .from('packaging_photo')
                 .getPublicUrl(filePath);
 
@@ -298,7 +298,7 @@ async function syncPendingPhotos() {
             const publicUrl = urlData.publicUrl;
 
             // 3. Update Database
-            const { error: dbError } = await supabase
+            const { error: dbError } = await supabaseClient
                 .from('packaging_material')
                 .update({ photo_url: publicUrl })
                 .eq('id', photo.productId);
