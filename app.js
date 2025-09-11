@@ -420,6 +420,16 @@ async function savePhotoToDB(productId, imageData, oldPhotoUrl = null) {
             console.log(`Photo for product ${productId} saved to IndexedDB.`);
             statusMessage.textContent = `Photo saved locally.`;
             updateSyncUIVisibility();
+
+            // Update the UI to show the pending status
+            const row = document.querySelector(`tr[data-id='${productId}']`);
+            if (row) {
+                const photoCell = row.querySelector('td:last-child');
+                if (photoCell) {
+                    photoCell.textContent = 'Waiting for Upload';
+                    photoCell.classList.add('pending-upload');
+                }
+            }
         };
         transaction.onerror = (event) => {
             console.error('Error saving photo to DB:', event.target.error);

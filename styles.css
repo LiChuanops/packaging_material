@@ -61,6 +61,11 @@ td .photo-thumbnail {
     min-width: 150px; /* Give it some minimum width */
 }
 
+.pending-upload {
+    font-style: italic;
+    color: #888;
+}
+
 /* Status and Sync */
 #status-container {
     padding: 10px;
