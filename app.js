@@ -1,7 +1,6 @@
 // --- CONFIGURATION ---
-// IMPORTANT: Replace with your actual Supabase URL and Anon Key
-const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL = 'https://nlxsuuxssbbyveoewmny.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5seHN1dXhzc2JieXZlb2V3bW55Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUxNjg4MzQsImV4cCI6MjA3MDc0NDgzNH0.aKCUDelPVKJ6k0-DrpaeR13CfCjIR1LOCDq6gj-7QvM';
 
 // --- DOM ELEMENTS ---
 const tableBody = document.querySelector('#data-table tbody');
@@ -63,7 +62,7 @@ async function fetchProducts() {
     statusMessage.textContent = 'Loading products...';
     try {
         const { data, error } = await supabase
-            .from('products')
+            .from('packaging_material')
             .select('*')
             .order('created_at', { ascending: false });
 
@@ -84,11 +83,11 @@ function renderTable(products) {
     tableBody.innerHTML = ''; // Clear existing data
 
     if (!products || products.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="5">No products found.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="3">No products found.</td></tr>';
         return;
     }
 
-    const headers = ["Account Code", "Vietnamese Name", "English Name", "UOM", "Photo"];
+    const headers = ["Vietnamese Name", "UOM", "Photo"];
 
     products.forEach(product => {
         const row = document.createElement('tr');
@@ -96,9 +95,7 @@ function renderTable(products) {
         row.addEventListener('click', () => openModal(product.id));
 
         const cells = [
-            product.account_code,
             product.viet_name,
-            product.eng_name,
             product.uom,
             product.photo_url
         ];
@@ -115,6 +112,10 @@ function renderTable(products) {
                 }
             } else {
                 cell.textContent = cellData;
+            }
+
+            if (headers[index] === 'Vietnamese Name') {
+                cell.classList.add('viet-name-cell');
             }
             row.appendChild(cell);
         });
@@ -195,21 +196,45 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 
-// --- ONLINE / OFFLINE & SYNC ---
+// --- ONLINE / OFFLLINE & SYNC ---
 window.addEventListener('online', updateOnlineStatus);
 window.addEventListener('offline', updateOnlineStatus);
 
 function updateOnlineStatus() {
     const isOnline = navigator.onLine;
     statusMessage.textContent = isOnline ? 'You are online.' : 'You are offline. Photos will be saved locally.';
-    if (isOnline) {
-        syncPendingPhotos();
-    } else {
-        syncButton.style.display = 'none';
-    }
+    updateSyncUIVisibility();
 }
 
 syncButton.addEventListener('click', syncPendingPhotos);
+
+async function updateSyncUIVisibility() {
+    if (!db) {
+        // DB might not be initialized yet, this will be called again later
+        return;
+    }
+    try {
+        const transaction = db.transaction(['pending_photos'], 'readonly');
+        const store = transaction.objectStore('pending_photos');
+        const countRequest = store.count();
+        countRequest.onsuccess = () => {
+            const count = countRequest.result;
+            if (count > 0 && navigator.onLine) {
+                syncButton.style.display = 'block';
+                syncButton.textContent = `Sync ${count} Pending Photo(s)`;
+            } else {
+                syncButton.style.display = 'none';
+            }
+        };
+        countRequest.onerror = (event) => {
+            console.error("Could not count pending photos:", event.target.error);
+            syncButton.style.display = 'none';
+        };
+    } catch (error) {
+        console.error("Error accessing IndexedDB for UI update:", error);
+        syncButton.style.display = 'none';
+    }
+}
 
 function dataURLtoBlob(dataurl) {
     const arr = dataurl.split(',');
@@ -241,14 +266,13 @@ async function syncPendingPhotos() {
         });
 
         if (pendingPhotos.length === 0) {
-            statusMessage.textContent = 'All photos are synced.';
-            syncButton.style.display = 'none';
+            // This case should ideally not be hit if the button isn't visible, but as a safeguard:
             isSyncing = false;
+            updateSyncUIVisibility();
             return;
         }
 
-        syncButton.style.display = 'block';
-        statusMessage.textContent = `Found ${pendingPhotos.length} photo(s) to sync.`;
+        statusMessage.textContent = `Syncing ${pendingPhotos.length} photo(s)...`;
 
         for (const photo of pendingPhotos) {
             const blob = dataURLtoBlob(photo.imageData);
@@ -256,7 +280,7 @@ async function syncPendingPhotos() {
 
             // 1. Upload to Storage
             const { error: uploadError } = await supabase.storage
-                .from('photos')
+                .from('packaging_photo')
                 .upload(filePath, blob);
 
             if (uploadError) {
@@ -265,7 +289,7 @@ async function syncPendingPhotos() {
 
             // 2. Get Public URL
             const { data: urlData } = supabase.storage
-                .from('photos')
+                .from('packaging_photo')
                 .getPublicUrl(filePath);
 
             if (!urlData || !urlData.publicUrl) {
@@ -275,7 +299,7 @@ async function syncPendingPhotos() {
 
             // 3. Update Database
             const { error: dbError } = await supabase
-                .from('products')
+                .from('packaging_material')
                 .update({ photo_url: publicUrl })
                 .eq('id', photo.productId);
 
@@ -299,8 +323,8 @@ async function syncPendingPhotos() {
         statusMessage.textContent = `Sync failed: ${error.message}. Will try again later.`;
     } finally {
         isSyncing = false;
-        syncButton.textContent = 'Sync Pending Photos';
         syncButton.disabled = false;
+        updateSyncUIVisibility();
     }
 }
 
@@ -343,7 +367,7 @@ async function savePhoto() {
             console.log('Photo saved to IndexedDB');
             statusMessage.textContent = `Photo for product ${currentProductId} saved locally.`;
             closeModal();
-            // TODO: Visually indicate that this row has a pending photo
+            updateSyncUIVisibility();
         };
         transaction.onerror = (event) => {
             console.error('Error saving photo to DB:', event.target.error);

@@ -56,6 +56,11 @@ td .photo-thumbnail {
     border-radius: 5px;
 }
 
+.viet-name-cell {
+    word-break: break-word;
+    min-width: 150px; /* Give it some minimum width */
+}
+
 /* Status and Sync */
 #status-container {
     padding: 10px;
