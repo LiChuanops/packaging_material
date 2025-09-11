@@ -60,7 +60,7 @@ async function fetchProducts() {
         const { data, error } = await supabaseClient
             .from('packaging_material')
             .select('*')
-            .order('created_at', { ascending: false });
+            .order('id', { ascending: true });
 
         if (error) {
             throw error;
@@ -83,7 +83,7 @@ function renderTable(products) {
         return;
     }
 
-    const headers = ["Vietnamese Name", "UOM", "Photo"];
+    const headers = ["Name", "UOM", "Photo"];
 
     products.forEach(product => {
         const row = document.createElement('tr');
@@ -120,7 +120,7 @@ function renderTable(products) {
                 cell.textContent = cellData;
             }
 
-            if (headers[index] === 'Vietnamese Name') {
+            if (headers[index] === 'Name') {
                 cell.classList.add('viet-name-cell');
             }
             row.appendChild(cell);

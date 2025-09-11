@@ -1,6 +1,6 @@
 {
-    "name": "Supabase PWA Photo App",
-    "short_name": "PhotoApp",
+    "name": "Packaging Material",
+    "short_name": "Packaging",
     "start_url": "index.html",
     "display": "standalone",
     "background_color": "#ffffff",
