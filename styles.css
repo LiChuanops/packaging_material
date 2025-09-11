@@ -97,6 +97,15 @@ button:hover {
     background-color: #007B9A;
 }
 
+#retake-photo-button {
+    background-color: #f39c12; /* Orange */
+    width: 100%;
+}
+
+#retake-photo-button:hover {
+    background-color: #e67e22;
+}
+
 
 /* Modal Styling */
 .modal {

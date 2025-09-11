@@ -30,16 +30,19 @@
     </table>
     </div>
 
-    <!-- Camera Modal -->
-    <div id="camera-modal" class="modal">
+    <!-- Hidden input for native camera access -->
+    <input type="file" id="photo-input" accept="image/*" capture style="display: none;">
+
+    <!-- Canvas for compression (remains hidden) -->
+    <canvas id="canvas" style="display: none;"></canvas>
+
+    <!-- Photo View Modal -->
+    <div id="photo-view-modal" class="modal">
         <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h2>Take Photo</h2>
-            <video id="video" width="100%" autoplay playsinline></video>
-            <canvas id="canvas" style="display:none;"></canvas>
-            <img id="photo-preview" style="display:none;" width="100%">
-            <button id="click-photo">Take Photo</button>
-            <button id="save-photo" style="display:none;">Save Photo</button>
+            <span id="view-modal-close-button" class="close-button">&times;</span>
+            <h2>View Photo</h2>
+            <img id="full-photo-view" src="" alt="Full size photo" style="width: 100%; margin-top: 10px;">
+            <button id="retake-photo-button">Retake Photo</button>
         </div>
     </div>
 
