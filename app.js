@@ -20,10 +20,12 @@ const retakePhotoButton = document.getElementById('retake-photo-button');
 // Errors will be caught when the first API call is made.
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-
 // --- STATE ---
 let currentProductId = null;
 let oldPhotoUrlToDelete = null;
+
+// --- INDEXEDDB ---
+let db;
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -49,7 +51,6 @@ document.addEventListener('DOMContentLoaded', () => {
     viewModalCloseButton.addEventListener('click', () => photoViewModal.classList.remove('show'));
     retakePhotoButton.addEventListener('click', handleRetakePhoto);
 });
-
 
 // --- FUNCTIONS ---
 
@@ -206,9 +207,6 @@ function compressImage(file) {
     });
 }
 
-// --- INDEXEDDB ---
-let db;
-
 function initDB() {
     return new Promise((resolve, reject) => {
         const request = indexedDB.open('PWA_Photo_App_DB', 1);
@@ -239,8 +237,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateOnlineStatus();
 });
 
-
-// --- ONLINE / OFFLLINE & SYNC ---
+// --- ONLINE / OFFLINE & SYNC ---
 window.addEventListener('online', updateOnlineStatus);
 window.addEventListener('offline', updateOnlineStatus);
 
@@ -397,9 +394,7 @@ async function syncPendingPhotos() {
     }
 }
 
-
 // --- PHOTO SAVE ---
-
 async function savePhotoToDB(productId, imageData, oldPhotoUrl = null) {
     const photoData = {
         id: `photo_${Date.now()}`,
