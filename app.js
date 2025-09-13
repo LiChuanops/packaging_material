@@ -13,16 +13,17 @@ const canvas = document.getElementById('canvas');
 const photoViewModal = document.getElementById('photo-view-modal');
 const fullPhotoView = document.getElementById('full-photo-view');
 const viewModalCloseButton = document.getElementById('view-modal-close-button');
-const retakePhotoButton = document.getElementById('retake-photo-button');
+const addPhotoButton = document.getElementById('add-photo-button');
+const photoGallery = document.getElementById('photo-gallery');
+const modalTitle = document.getElementById('modal-title');
 
 // --- SUPABASE CLIENT ---
-// The createClient function doesn't throw an error for invalid credentials.
-// Errors will be caught when the first API call is made.
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- STATE ---
 let currentProductId = null;
-let oldPhotoUrlToDelete = null;
+let currentPhotos = [];
+let photoToDeleteId = null; // For tracking which photo to delete when retaking
 
 // --- INDEXEDDB ---
 let db;
@@ -48,26 +49,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Add event listeners
     photoInput.addEventListener('change', handlePhotoTaken);
-    viewModalCloseButton.addEventListener('click', () => photoViewModal.classList.remove('show'));
-    retakePhotoButton.addEventListener('click', handleRetakePhoto);
+    viewModalCloseButton.addEventListener('click', closePhotoModal);
+    addPhotoButton.addEventListener('click', () => {
+        photoToDeleteId = null; // New photo, not replacing
+        photoInput.click();
+    });
+
+    // Initialize IndexedDB
+    initDB();
 });
 
 // --- FUNCTIONS ---
 
-// Fetch data from Supabase
+// Fetch data from Supabase with photos
 async function fetchProducts() {
     statusMessage.textContent = 'Loading products...';
     try {
-        const { data, error } = await supabaseClient
+        // Fetch materials with their photos
+        const { data: materials, error: materialError } = await supabaseClient
             .from('packaging_material')
-            .select('*')
+            .select(`
+                *,
+                packaging_photo (
+                    id,
+                    image_url,
+                    created_at
+                )
+            `)
             .order('id', { ascending: true });
 
-        if (error) {
-            throw error;
+        if (materialError) {
+            throw materialError;
         }
 
-        renderTable(data);
+        renderTable(materials);
         statusMessage.textContent = 'Products loaded successfully.';
     } catch (error) {
         console.error('Error fetching products:', error.message);
@@ -84,38 +99,35 @@ function renderTable(products) {
         return;
     }
 
-    const headers = ["Name", "UOM", "Photo"];
+    const headers = ["Name", "UOM", "Photos"];
 
     products.forEach(product => {
         const row = document.createElement('tr');
         row.dataset.id = product.id;
         row.addEventListener('click', () => {
-            if (product.photo_url) {
-                // If photo exists, open the view modal
-                openViewModal(product);
-            } else {
-                // Otherwise, trigger the photo capture for a new photo
-                currentProductId = product.id;
-                oldPhotoUrlToDelete = null; // Ensure we're not deleting anything
-                photoInput.click();
-            }
+            openPhotoModal(product);
         });
 
+        const photoCount = product.packaging_photo ? product.packaging_photo.length : 0;
         const cells = [
             product.viet_name,
             product.uom,
-            product.photo_url
+            photoCount
         ];
 
         cells.forEach((cellData, index) => {
             const cell = document.createElement('td');
             cell.dataset.label = headers[index];
 
-            if (headers[index] === 'Photo') {
-                if (cellData) {
-                    cell.innerHTML = `<img src="${cellData}" alt="Product Photo" class="photo-thumbnail">`;
+            if (headers[index] === 'Photos') {
+                if (photoCount > 0) {
+                    cell.innerHTML = `<span class="photo-count">${photoCount} photo(s)</span>`;
+                    // Show first photo as thumbnail
+                    if (product.packaging_photo[0].image_url) {
+                        cell.innerHTML += `<img src="${product.packaging_photo[0].image_url}" alt="Product Photo" class="photo-thumbnail">`;
+                    }
                 } else {
-                    cell.textContent = 'No Photo';
+                    cell.innerHTML = '<span class="no-photos">No Photos</span>';
                 }
             } else {
                 cell.textContent = cellData;
@@ -131,16 +143,117 @@ function renderTable(products) {
     });
 }
 
-function openViewModal(product) {
+function openPhotoModal(product) {
     currentProductId = product.id;
-    oldPhotoUrlToDelete = product.photo_url; // Set the URL to delete if user retakes
-    fullPhotoView.src = product.photo_url;
+    currentPhotos = product.packaging_photo || [];
+    
+    modalTitle.textContent = `Photos for ${product.viet_name}`;
+    
+    // Clear and populate photo gallery
+    photoGallery.innerHTML = '';
+    
+    currentPhotos.forEach((photo, index) => {
+        const photoContainer = document.createElement('div');
+        photoContainer.className = 'photo-item';
+        
+        photoContainer.innerHTML = `
+            <img src="${photo.image_url}" alt="Product Photo ${index + 1}" class="gallery-photo">
+            <div class="photo-actions">
+                <button class="retake-btn" onclick="retakePhoto(${photo.id}, '${photo.image_url}')">Replace</button>
+                <button class="delete-btn" onclick="deletePhoto(${photo.id})">Delete</button>
+            </div>
+        `;
+        
+        photoGallery.appendChild(photoContainer);
+    });
+    
+    // Show add button only if less than 3 photos
+    if (currentPhotos.length < 3) {
+        addPhotoButton.style.display = 'block';
+    } else {
+        addPhotoButton.style.display = 'none';
+    }
+    
     photoViewModal.classList.add('show');
 }
 
-function handleRetakePhoto() {
+function closePhotoModal() {
     photoViewModal.classList.remove('show');
-    photoInput.click(); // Trigger the native camera
+    currentProductId = null;
+    currentPhotos = [];
+    photoToDeleteId = null;
+}
+
+// Global functions for button clicks
+window.retakePhoto = function(photoId, imageUrl) {
+    photoToDeleteId = photoId;
+    photoInput.click();
+}
+
+window.deletePhoto = async function(photoId) {
+    if (!confirm('Are you sure you want to delete this photo?')) {
+        return;
+    }
+
+    try {
+        statusMessage.textContent = 'Deleting photo...';
+        
+        // Get photo details first
+        const { data: photo, error: fetchError } = await supabaseClient
+            .from('packaging_photo')
+            .select('image_url')
+            .eq('id', photoId)
+            .single();
+
+        if (fetchError) {
+            throw fetchError;
+        }
+
+        // Delete from storage
+        if (photo.image_url) {
+            const filePath = new URL(photo.image_url).pathname.split('/packaging_photo/')[1];
+            if (filePath) {
+                await supabaseClient.storage.from('packaging_photo').remove([filePath]);
+            }
+        }
+
+        // Delete from database
+        const { error: deleteError } = await supabaseClient
+            .from('packaging_photo')
+            .delete()
+            .eq('id', photoId);
+
+        if (deleteError) {
+            throw deleteError;
+        }
+
+        statusMessage.textContent = 'Photo deleted successfully.';
+        
+        // Refresh the current product data
+        const { data: updatedProduct } = await supabaseClient
+            .from('packaging_material')
+            .select(`
+                *,
+                packaging_photo (
+                    id,
+                    image_url,
+                    created_at
+                )
+            `)
+            .eq('id', currentProductId)
+            .single();
+
+        if (updatedProduct) {
+            openPhotoModal(updatedProduct);
+        }
+        
+        // Refresh table
+        fetchProducts();
+        
+    } catch (error) {
+        console.error('Error deleting photo:', error);
+        statusMessage.textContent = `Error deleting photo: ${error.message}`;
+    }
 }
 
 // This function will be called when the user selects a file
@@ -154,14 +267,14 @@ async function handlePhotoTaken(event) {
 
     try {
         const compressedDataUrl = await compressImage(file);
-        await savePhotoToDB(currentProductId, compressedDataUrl, oldPhotoUrlToDelete);
+        await savePhotoToDB(currentProductId, compressedDataUrl, photoToDeleteId);
     } catch (error) {
         console.error('Failed to process photo:', error);
         statusMessage.textContent = `Error: ${error.message}`;
     } finally {
-        // Reset the input value and the URL to delete
+        // Reset the input value
         event.target.value = '';
-        oldPhotoUrlToDelete = null;
+        photoToDeleteId = null;
     }
 }
 
@@ -174,7 +287,6 @@ function compressImage(file) {
                 const ctx = canvas.getContext('2d');
 
                 // --- Compression logic ---
-                // You can adjust MAX_WIDTH/MAX_HEIGHT to control the size
                 const MAX_WIDTH = 800;
                 const MAX_HEIGHT = 800;
                 let width = img.width;
@@ -209,18 +321,25 @@ function compressImage(file) {
 
 function initDB() {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open('PWA_Photo_App_DB', 1);
+        const request = indexedDB.open('PWA_Photo_App_DB', 2); // Increment version
 
         request.onupgradeneeded = (event) => {
             db = event.target.result;
-            if (!db.objectStoreNames.contains('pending_photos')) {
-                db.createObjectStore('pending_photos', { keyPath: 'id' });
+            
+            // Delete old store if exists
+            if (db.objectStoreNames.contains('pending_photos')) {
+                db.deleteObjectStore('pending_photos');
             }
+            
+            // Create new store with updated structure
+            const store = db.createObjectStore('pending_photos', { keyPath: 'id' });
+            store.createIndex('productId', 'productId', { unique: false });
         };
 
         request.onsuccess = (event) => {
             db = event.target.result;
             console.log('IndexedDB initialized successfully.');
+            updateOnlineStatus();
             resolve(db);
         };
 
@@ -230,12 +349,6 @@ function initDB() {
         };
     });
 }
-
-// Call initDB when the app loads and check for pending photos
-document.addEventListener('DOMContentLoaded', async () => {
-    await initDB();
-    updateOnlineStatus();
-});
 
 // --- ONLINE / OFFLINE & SYNC ---
 window.addEventListener('online', updateOnlineStatus);
@@ -251,7 +364,6 @@ syncButton.addEventListener('click', syncPendingPhotos);
 
 async function updateSyncUIVisibility() {
     if (!db) {
-        // DB might not be initialized yet, this will be called again later
         return;
     }
     try {
@@ -307,7 +419,6 @@ async function syncPendingPhotos() {
         });
 
         if (pendingPhotos.length === 0) {
-            // This case should ideally not be hit if the button isn't visible, but as a safeguard:
             isSyncing = false;
             updateSyncUIVisibility();
             return;
@@ -318,17 +429,32 @@ async function syncPendingPhotos() {
         for (const photo of pendingPhotos) {
             console.log(`--- Syncing photo for product ID: ${photo.productId} ---`);
 
-            // Step 0: Delete the old photo if it exists
-            if (photo.oldPhotoUrlToDelete) {
+            // Step 0: Delete the old photo if it's a replacement
+            if (photo.photoToDeleteId) {
                 try {
-                    const oldFilePath = new URL(photo.oldPhotoUrlToDelete).pathname.split('/packaging_photo/')[1];
-                    if (oldFilePath) {
-                        console.log(`Deleting old photo: ${oldFilePath}`);
-                        await supabaseClient.storage.from('packaging_photo').remove([oldFilePath]);
+                    // Get the photo to delete
+                    const { data: photoToDelete, error: fetchError } = await supabaseClient
+                        .from('packaging_photo')
+                        .select('image_url')
+                        .eq('id', photo.photoToDeleteId)
+                        .single();
+
+                    if (!fetchError && photoToDelete.image_url) {
+                        const oldFilePath = new URL(photoToDelete.image_url).pathname.split('/packaging_photo/')[1];
+                        if (oldFilePath) {
+                            console.log(`Deleting old photo: ${oldFilePath}`);
+                            await supabaseClient.storage.from('packaging_photo').remove([oldFilePath]);
+                        }
                     }
+
+                    // Delete from database
+                    await supabaseClient
+                        .from('packaging_photo')
+                        .delete()
+                        .eq('id', photo.photoToDeleteId);
+                        
                 } catch (error) {
-                    console.error("Could not parse or delete old photo. It might be orphaned.", error);
-                    // We continue anyway, as uploading the new photo is more important.
+                    console.error("Could not delete old photo. It might be orphaned.", error);
                 }
             }
 
@@ -359,19 +485,21 @@ async function syncPendingPhotos() {
             const publicUrl = urlData.publicUrl;
             console.log(`Got public URL: ${publicUrl}`);
 
-            // 3. Update Database
-            console.log(`Updating database for product ID: ${photo.productId}`);
-            const { data: updateData, error: dbError } = await supabaseClient
-                .from('packaging_material')
-                .update({ photo_url: publicUrl })
-                .eq('id', photo.productId)
-                .select(); // Use .select() to get the updated row back and confirm the change
+            // 3. Insert into packaging_photo table
+            console.log(`Inserting photo record for material ID: ${photo.productId}`);
+            const { data: insertData, error: dbError } = await supabaseClient
+                .from('packaging_photo')
+                .insert({
+                    material_id: photo.productId,
+                    image_url: publicUrl
+                })
+                .select();
 
             if (dbError) {
-                console.error('Database Update Error:', dbError);
-                throw new Error(`Database update failed: ${dbError.message}`);
+                console.error('Database Insert Error:', dbError);
+                throw new Error(`Database insert failed: ${dbError.message}`);
             }
-            console.log('Database update successful. Response:', updateData);
+            console.log('Database insert successful. Response:', insertData);
 
             // 4. Delete from IndexedDB
             const deleteTransaction = db.transaction(['pending_photos'], 'readwrite');
@@ -395,12 +523,12 @@ async function syncPendingPhotos() {
 }
 
 // --- PHOTO SAVE ---
-async function savePhotoToDB(productId, imageData, oldPhotoUrl = null) {
+async function savePhotoToDB(productId, imageData, photoToDeleteId = null) {
     const photoData = {
         id: `photo_${Date.now()}`,
         productId: productId,
         imageData: imageData,
-        oldPhotoUrlToDelete: oldPhotoUrl
+        photoToDeleteId: photoToDeleteId
     };
 
     try {
@@ -421,10 +549,12 @@ async function savePhotoToDB(productId, imageData, oldPhotoUrl = null) {
             if (row) {
                 const photoCell = row.querySelector('td:last-child');
                 if (photoCell) {
-                    photoCell.textContent = 'Waiting Sync';
-                    photoCell.classList.add('pending-upload');
+                    photoCell.innerHTML = '<span class="pending-upload">Waiting Sync</span>';
                 }
             }
+            
+            // Close modal to refresh
+            closePhotoModal();
         };
         transaction.onerror = (event) => {
             console.error('Error saving photo to DB:', event.target.error);
