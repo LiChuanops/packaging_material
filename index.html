@@ -12,22 +12,22 @@
         <h1>Packaging Material</h1>
 
         <div id="status-container">
-        <p id="status-message"></p>
-        <button id="sync-button" style="display:none;">Sync Pending Photos</button>
-    </div>
+            <p id="status-message"></p>
+            <button id="sync-button" style="display:none;">Sync Pending Photos</button>
+        </div>
 
-    <table id="data-table">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>UOM</th>
-                <th>Photo</th>
-            </tr>
-        </thead>
-        <tbody>
-            <!-- Data will be populated here by app.js -->
-        </tbody>
-    </table>
+        <table id="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>UOM</th>
+                    <th>Photos</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Data will be populated here by app.js -->
+            </tbody>
+        </table>
     </div>
 
     <!-- Hidden input for native camera access -->
@@ -36,13 +36,26 @@
     <!-- Canvas for compression (remains hidden) -->
     <canvas id="canvas" style="display: none;"></canvas>
 
-    <!-- Photo View Modal -->
+    <!-- Photo Management Modal -->
     <div id="photo-view-modal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content photo-management-modal">
             <span id="view-modal-close-button" class="close-button">&times;</span>
-            <h2>View Photo</h2>
-            <img id="full-photo-view" src="" alt="Full size photo" style="width: 100%; margin-top: 10px;">
-            <button id="retake-photo-button">Retake Photo</button>
+            <h2 id="modal-title">Photos</h2>
+            
+            <div id="photo-gallery" class="photo-gallery">
+                <!-- Photos will be dynamically added here -->
+            </div>
+            
+            <div class="modal-actions">
+                <button id="add-photo-button" class="add-photo-btn">
+                    <span class="plus-icon">+</span>
+                    Add Photo
+                </button>
+            </div>
+            
+            <div class="photo-limit-info">
+                <small>Maximum 3 photos per item</small>
+            </div>
         </div>
     </div>
 
