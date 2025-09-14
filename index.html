@@ -42,8 +42,18 @@
             <span id="view-modal-close-button" class="close-button">&times;</span>
             <h2 id="modal-title">Photos</h2>
             
-            <div id="photo-gallery" class="photo-gallery">
-                <!-- Photos will be dynamically added here -->
+            <div id="photo-viewer-container" class="photo-viewer-container">
+                <button id="prev-photo-button" class="nav-button prev" title="Previous Photo">&lt;</button>
+                <div class="photo-display-area">
+                    <img id="current-photo" src="" alt="Packaging Material Photo" class="current-photo-img">
+                    <p id="no-photos-message" style="display: none;">No photos to display.</p>
+                </div>
+                <button id="next-photo-button" class="nav-button next" title="Next Photo">&gt;</button>
+            </div>
+
+            <div id="photo-actions-container" class="photo-actions-container">
+                <button id="replace-photo-button" class="retake-btn">Replace</button>
+                <button id="delete-photo-button" class="delete-btn">Delete</button>
             </div>
             
             <div class="modal-actions">

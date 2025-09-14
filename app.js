@@ -11,11 +11,20 @@ const syncButton = document.getElementById('sync-button');
 const photoInput = document.getElementById('photo-input');
 const canvas = document.getElementById('canvas');
 const photoViewModal = document.getElementById('photo-view-modal');
-const fullPhotoView = document.getElementById('full-photo-view');
 const viewModalCloseButton = document.getElementById('view-modal-close-button');
 const addPhotoButton = document.getElementById('add-photo-button');
-const photoGallery = document.getElementById('photo-gallery');
 const modalTitle = document.getElementById('modal-title');
+
+// New elements for the photo viewer
+const photoViewerContainer = document.getElementById('photo-viewer-container');
+const currentPhoto = document.getElementById('current-photo');
+const noPhotosMessage = document.getElementById('no-photos-message');
+const prevPhotoButton = document.getElementById('prev-photo-button');
+const nextPhotoButton = document.getElementById('next-photo-button');
+const photoActionsContainer = document.getElementById('photo-actions-container');
+const replacePhotoButton = document.getElementById('replace-photo-button');
+const deletePhotoButton = document.getElementById('delete-photo-button');
+
 
 // --- SUPABASE CLIENT ---
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -23,6 +32,7 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // --- STATE ---
 let currentProductId = null;
 let currentPhotos = [];
+let currentPhotoIndex = 0; // New state for the viewer
 let photoToDeleteId = null; // For tracking which photo to delete when retaking
 
 // --- INDEXEDDB ---
@@ -54,6 +64,36 @@ document.addEventListener('DOMContentLoaded', () => {
         photoToDeleteId = null; // New photo, not replacing
         photoInput.click();
     });
+
+    // Event listeners for photo viewer
+    prevPhotoButton.addEventListener('click', () => {
+        if (currentPhotoIndex > 0) {
+            currentPhotoIndex--;
+            showPhoto(currentPhotoIndex);
+        }
+    });
+
+    nextPhotoButton.addEventListener('click', () => {
+        if (currentPhotoIndex < currentPhotos.length - 1) {
+            currentPhotoIndex++;
+            showPhoto(currentPhotoIndex);
+        }
+    });
+
+    replacePhotoButton.addEventListener('click', () => {
+        if (currentPhotos.length > 0 && currentPhotos[currentPhotoIndex]) {
+            const photo = currentPhotos[currentPhotoIndex];
+            retakePhoto(photo.id, photo.image_url);
+        }
+    });
+
+    deletePhotoButton.addEventListener('click', () => {
+        if (currentPhotos.length > 0 && currentPhotos[currentPhotoIndex]) {
+            const photo = currentPhotos[currentPhotoIndex];
+            deletePhoto(photo.id);
+        }
+    });
+
 
     // Initialize IndexedDB
     initDB();
@@ -143,31 +183,37 @@ function renderTable(products) {
     });
 }
 
+function showPhoto(index) {
+    if (!currentPhotos || currentPhotos.length === 0) {
+        currentPhoto.style.display = 'none';
+        noPhotosMessage.style.display = 'block';
+        photoActionsContainer.style.display = 'none';
+        prevPhotoButton.style.display = 'none';
+        nextPhotoButton.style.display = 'none';
+        return;
+    }
+
+    currentPhoto.style.display = 'block';
+    noPhotosMessage.style.display = 'none';
+    photoActionsContainer.style.display = 'flex';
+
+    const photo = currentPhotos[index];
+    currentPhoto.src = photo.image_url;
+    currentPhoto.alt = `Photo ${index + 1}`;
+
+    prevPhotoButton.style.display = index > 0 ? 'block' : 'none';
+    nextPhotoButton.style.display = index < currentPhotos.length - 1 ? 'block' : 'none';
+}
+
 function openPhotoModal(product) {
     currentProductId = product.id;
     currentPhotos = product.packaging_photo || [];
+    currentPhotoIndex = 0;
     
     modalTitle.textContent = `Photos for ${product.viet_name}`;
     
-    // Clear and populate photo gallery
-    photoGallery.innerHTML = '';
+    showPhoto(currentPhotoIndex);
     
-    currentPhotos.forEach((photo, index) => {
-        const photoContainer = document.createElement('div');
-        photoContainer.className = 'photo-item';
-        
-        photoContainer.innerHTML = `
-            <img src="${photo.image_url}" alt="Product Photo ${index + 1}" class="gallery-photo">
-            <div class="photo-actions">
-                <button class="retake-btn" onclick="retakePhoto(${photo.id}, '${photo.image_url}')">Replace</button>
-                <button class="delete-btn" onclick="deletePhoto(${photo.id})">Delete</button>
-            </div>
-        `;
-        
-        photoGallery.appendChild(photoContainer);
-    });
-    
-    // Show add button only if less than 3 photos
     if (currentPhotos.length < 3) {
         addPhotoButton.style.display = 'block';
     } else {
@@ -181,16 +227,16 @@ function closePhotoModal() {
     photoViewModal.classList.remove('show');
     currentProductId = null;
     currentPhotos = [];
+    currentPhotoIndex = 0;
     photoToDeleteId = null;
 }
 
-// Global functions for button clicks
-window.retakePhoto = function(photoId, imageUrl) {
+function retakePhoto(photoId, imageUrl) {
     photoToDeleteId = photoId;
     photoInput.click();
 }
 
-window.deletePhoto = async function(photoId) {
+async function deletePhoto(photoId) {
     if (!confirm('Are you sure you want to delete this photo?')) {
         return;
     }
