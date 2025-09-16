@@ -45,11 +45,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!('indexedDB' in window)) {
         console.error("This browser doesn't support IndexedDB. Offline storage will not work.");
         statusMessage.textContent = "Warning: Offline storage is not supported on this browser.";
-    }
-
-    if (supabaseClient) {
-        // Initial data fetch
-        fetchProducts();
+        // Hide sync button if IndexedDB is not supported
+        if(syncButton) syncButton.style.display = 'none';
     }
 
     // Register Service Worker
@@ -59,53 +56,116 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(err => console.error('Service Worker registration failed', err));
     }
 
-    // Add event listeners
+    // Add event listeners for UI elements
     photoInput.addEventListener('change', handlePhotoTaken);
     viewModalCloseButton.addEventListener('click', closePhotoModal);
     addPhotoButton.addEventListener('click', () => {
         photoToDeleteId = null; // New photo, not replacing
         photoInput.click();
     });
-
-    // Event listeners for photo viewer
     prevPhotoButton.addEventListener('click', () => {
         if (currentPhotoIndex > 0) {
             currentPhotoIndex--;
             showPhoto(currentPhotoIndex);
         }
     });
-
     nextPhotoButton.addEventListener('click', () => {
         if (currentPhotoIndex < currentPhotos.length - 1) {
             currentPhotoIndex++;
             showPhoto(currentPhotoIndex);
         }
     });
-
     replacePhotoButton.addEventListener('click', () => {
         if (currentPhotos.length > 0 && currentPhotos[currentPhotoIndex]) {
             const photo = currentPhotos[currentPhotoIndex];
             retakePhoto(photo.id, photo.image_url);
         }
     });
-
     deletePhotoButton.addEventListener('click', () => {
         if (currentPhotos.length > 0 && currentPhotos[currentPhotoIndex]) {
             const photo = currentPhotos[currentPhotoIndex];
             deletePhoto(photo.id);
         }
     });
+    syncButton.addEventListener('click', syncAllData);
 
-    syncButton.addEventListener('click', syncAllData); // Changed to syncAllData
-
-    // Initialize IndexedDB
-    initDB();
+    // Initialize IndexedDB and then load initial data
+    initDB().then(() => {
+        loadInitialData();
+    }).catch(err => {
+        console.error("Failed to initialize DB:", err);
+        // Fallback to network if DB fails
+        if(navigator.onLine) {
+            fetchProducts();
+        } else {
+            statusMessage.textContent = "Error: Could not access local storage."
+        }
+    });
 });
 
 // --- FUNCTIONS ---
 
+async function loadInitialData() {
+    if (!db) {
+        console.log('DB not ready, trying to fetch from network.');
+        if (navigator.onLine) {
+            fetchProducts();
+        } else {
+            statusMessage.textContent = "You are offline and no local data is available.";
+        }
+        return;
+    }
+
+    // 1. Try to load from cache first
+    try {
+        const transaction = db.transaction(['products_cache'], 'readonly');
+        const store = transaction.objectStore('products_cache');
+        const request = store.getAll();
+
+        request.onsuccess = () => {
+            const cachedProducts = request.result;
+            if (cachedProducts && cachedProducts.length > 0) {
+                console.log('Rendering table from cached products.');
+                renderTable(cachedProducts);
+                statusMessage.textContent = 'Showing cached data. Checking for updates...';
+            } else {
+                 statusMessage.textContent = 'No cached data found. Trying to fetch from network...';
+            }
+
+            // 2. Then, fetch from network if online to get latest data
+            if (navigator.onLine) {
+                console.log('Fetching latest products from network.');
+                fetchProducts();
+            } else {
+                if (!cachedProducts || cachedProducts.length === 0) {
+                    statusMessage.textContent = 'You are offline and no data is cached.';
+                } else {
+                    statusMessage.textContent = 'You are offline. Displaying cached data.';
+                }
+            }
+        };
+        request.onerror = (event) => {
+            console.error('Error reading from cache:', event.target.error);
+            if (navigator.onLine) {
+                fetchProducts();
+            }
+        };
+    } catch (error) {
+        console.error('Error accessing products_cache:', error);
+        if (navigator.onLine) {
+            fetchProducts();
+        }
+    }
+}
+
+
 // Fetch data from Supabase with photos
 async function fetchProducts() {
+    if (!navigator.onLine) {
+        statusMessage.textContent = 'You are offline. Cannot fetch new data.';
+        return;
+    }
+
     statusMessage.textContent = 'Loading products...';
     try {
         // Fetch materials with their photos
@@ -125,11 +185,32 @@ async function fetchProducts() {
             throw materialError;
         }
 
+        // --- Caching logic ---
+        if (db && materials) {
+            try {
+                const transaction = db.transaction(['products_cache'], 'readwrite');
+                const store = transaction.objectStore('products_cache');
+                store.clear(); // Clear old cache
+                for (const product of materials) {
+                    store.put(product); // Use put to add/update
+                }
+                transaction.oncomplete = () => {
+                    console.log('Products cached successfully.');
+                };
+                transaction.onerror = (event) => {
+                    console.error('Error caching products:', event.target.error);
+                };
+            } catch(e) {
+                console.error("Error while trying to cache products", e);
+            }
+        }
+        // --- Caching logic ends ---
+
         renderTable(materials);
         statusMessage.textContent = 'Products loaded successfully.';
     } catch (error) {
         console.error('Error fetching products:', error.message);
-        statusMessage.textContent = `Error: ${error.message}`;
+        statusMessage.textContent = `Error fetching products. Displaying cached data if available.`;
     }
 }
 
@@ -146,13 +227,6 @@ function renderTable(products) {
         const row = document.createElement('tr');
         row.dataset.id = product.id;
 
-        // Prevent modal from opening when clicking on input
-        row.addEventListener('click', (event) => {
-            if (event.target.tagName.toLowerCase() !== 'input') {
-                openPhotoModal(product);
-            }
-        });
-
         // Create cells in order
         const nameCell = document.createElement('td');
         nameCell.dataset.label = "Name";
@@ -167,6 +241,7 @@ function renderTable(products) {
 
         const weightCell = document.createElement('td');
         weightCell.dataset.label = "Weight";
+        weightCell.classList.add('weight-cell'); // Add class for styling
         const weightInput = document.createElement('input');
         weightInput.type = 'number';
         weightInput.value = product.weight === null || product.weight === undefined ? '' : product.weight;
@@ -187,6 +262,7 @@ function renderTable(products) {
         } else {
             photoCell.innerHTML = '<span class="no-photos">No Photos</span>';
         }
+        photoCell.addEventListener('click', () => openPhotoModal(product));
         row.appendChild(photoCell);
 
         tableBody.appendChild(row);
@@ -403,7 +479,7 @@ function compressImage(file) {
 
 function initDB() {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open('PWA_Photo_App_DB', 3); // Version 3
+        const request = indexedDB.open('PWA_Photo_App_DB', 4); // Version 4
 
         request.onupgradeneeded = (event) => {
             db = event.target.result;
@@ -416,6 +492,11 @@ function initDB() {
             if (!db.objectStoreNames.contains('pending_updates')) {
                 const updateStore = db.createObjectStore('pending_updates', { keyPath: 'id' });
                 updateStore.createIndex('productId', 'productId', { unique: false });
+            }
+
+            if (!db.objectStoreNames.contains('products_cache')) {
+                const productStore = db.createObjectStore('products_cache', { keyPath: 'id' });
+                productStore.createIndex('viet_name', 'viet_name', { unique: false });
             }
         };
 
@@ -682,7 +763,7 @@ async function savePhotoToDB(productId, imageData, photoToDeleteId = null) {
             if (row) {
                 const photoCell = row.querySelector('td[data-label="Photos"]');
                 if (photoCell) {
-                    photoCell.innerHTML = '<span class="pending-upload">Waiting Sync</span>';
+                    photoCell.innerHTML = '<span class="pending-upload">Waiting Sync add more photo</span>';
                 }
             }
             
