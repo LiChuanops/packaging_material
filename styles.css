@@ -1,162 +1,101 @@
-/* 全局变量定义 */
-:root {
-    --primary-color: #000000;
-    --primary-hover: #333333;
-    --secondary-color: #666666;
-    --success-color: #000000;
-    --success-hover: #333333;
-    --warning-color: #666666;
-    --warning-hover: #555555;
-    --danger-color: #000000;
-    --danger-hover: #333333;
-    --info-color: #444444;
-    --info-hover: #222222;
-    
-    --background-primary: #ffffff;
-    --background-secondary: #fafafa;
-    --background-tertiary: #f5f5f5;
-    --text-primary: #000000;
-    --text-secondary: #666666;
-    --text-light: #999999;
-    --border-color: #e5e5e5;
-    --border-hover: #d1d1d1;
-    
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-    
-    --radius-sm: 0.375rem;
-    --radius-md: 0.5rem;
-    --radius-lg: 0.75rem;
-    --radius-xl: 1rem;
-    
-    --font-size-xs: 0.75rem;
-    --font-size-sm: 0.875rem;
-    --font-size-base: 1rem;
-    --font-size-lg: 1.125rem;
-    --font-size-xl: 1.25rem;
-    --font-size-2xl: 1.5rem;
-    --font-size-3xl: 1.875rem;
-    
-    --transition-fast: 0.15s ease-in-out;
-    --transition-normal: 0.2s ease-in-out;
-    --transition-slow: 0.3s ease-in-out;
-}
-
-/* 基础样式重置和字体设置 */
+/* 简洁黑白样式表 */
 * {
     box-sizing: border-box;
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
     margin: 0;
-    padding: 0;
-    background: #ffffff;
-    color: var(--text-primary);
+    padding: 20px;
+    background-color: #ffffff;
+    color: #000000;
     line-height: 1.6;
-    font-size: var(--font-size-base);
-    min-height: 100vh;
 }
 
-/* 容器布局 */
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 2rem 1rem;
-    position: relative;
+    padding: 0 15px;
 }
 
-/* 标题样式 */
 h1 {
-    color: var(--text-primary);
-    font-size: var(--font-size-3xl);
+    color: #000000;
+    font-size: 2rem;
     font-weight: 700;
     margin: 0 0 2rem 0;
     text-align: center;
 }
 
-/* 表格容器 */
+/* 表格样式 */
 .table-container {
-    background: var(--background-primary);
-    border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-lg);
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     overflow: hidden;
     margin: 2rem 0;
 }
 
-/* 桌面端表格样式 */
 table {
     width: 100%;
     border-collapse: collapse;
-    background: var(--background-primary);
+    background: #ffffff;
 }
 
 th, td {
     padding: 1rem 1.25rem;
     text-align: left;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid #e5e5e5;
     vertical-align: middle;
 }
 
 th {
-    background: var(--primary-color);
-    color: white;
+    background-color: #000000;
+    color: #ffffff;
     font-weight: 600;
-    font-size: var(--font-size-sm);
+    font-size: 0.875rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    position: sticky;
-    top: 0;
-    z-index: 10;
 }
 
 tr {
-    background-color: var(--background-primary);
-    transition: all var(--transition-fast);
+    background-color: #ffffff;
+    transition: all 0.2s ease;
 }
 
 tr:nth-child(even) {
-    background-color: var(--background-secondary);
+    background-color: #fafafa;
 }
 
 tr:hover {
-    background: var(--background-tertiary);
+    background-color: #f5f5f5;
     transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     cursor: pointer;
 }
 
-/* 照片缩略图样式 */
+/* 照片相关 */
 td .photo-thumbnail {
     width: 4rem;
     height: 4rem;
     object-fit: cover;
-    border-radius: var(--radius-lg);
+    border-radius: 8px;
     margin-left: 0.75rem;
     display: inline-block;
     vertical-align: middle;
-    box-shadow: var(--shadow-md);
-    transition: all var(--transition-normal);
-}
-
-td .photo-thumbnail:hover {
-    transform: scale(1.1);
-    box-shadow: var(--shadow-lg);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .photo-count {
     font-weight: 600;
-    color: var(--text-primary);
+    color: #000000;
     margin-right: 0.75rem;
-    font-size: var(--font-size-sm);
+    font-size: 0.875rem;
 }
 
 .no-photos {
-    color: var(--text-light);
+    color: #999999;
     font-style: italic;
-    font-size: var(--font-size-sm);
+    font-size: 0.875rem;
 }
 
 .viet-name-cell {
@@ -167,85 +106,68 @@ td .photo-thumbnail:hover {
 
 .pending-upload {
     font-style: italic;
-    color: var(--text-secondary);
+    color: #666666;
     font-weight: 600;
     padding: 0.25rem 0.5rem;
-    background: var(--background-tertiary);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-xs);
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    font-size: 0.75rem;
 }
 
-/* 权重输入框样式 */
+/* 输入框 */
 .weight-cell input {
     width: 100%;
     padding: 0.5rem 0.75rem;
-    border: 2px solid var(--border-color);
-    border-radius: var(--radius-md);
-    font-size: var(--font-size-sm);
-    transition: all var(--transition-normal);
-    background: var(--background-primary);
+    border: 2px solid #e5e5e5;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+    background: #ffffff;
 }
 
 .weight-cell input:focus {
     outline: none;
-    border-color: var(--primary-color);
+    border-color: #000000;
     box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
 }
 
-/* 状态和同步区域 */
+/* 状态区域 */
 #status-container {
     padding: 1.25rem;
-    background: var(--background-tertiary);
-    border-left: 4px solid var(--primary-color);
-    border-radius: var(--radius-lg);
+    background-color: #f5f5f5;
+    border-left: 4px solid #000000;
+    border-radius: 8px;
     margin: 2rem 0;
-    box-shadow: var(--shadow-sm);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 #status-message {
     margin: 0;
     font-weight: 500;
-    color: var(--text-primary);
+    color: #000000;
 }
 
-/* 现代化按钮样式 */
+/* 按钮 */
 button {
-    background: var(--primary-color);
-    color: white;
+    background-color: #000000;
+    color: #ffffff;
     padding: 0.75rem 1.5rem;
     border: none;
-    border-radius: var(--radius-lg);
+    border-radius: 8px;
     cursor: pointer;
-    font-size: var(--font-size-sm);
+    font-size: 0.875rem;
     font-weight: 600;
     margin: 0.5rem 0;
-    transition: all var(--transition-normal);
-    box-shadow: var(--shadow-md);
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    position: relative;
-    overflow: hidden;
-}
-
-button::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-    transition: left var(--transition-slow);
-}
-
-button:hover::before {
-    left: 100%;
 }
 
 button:hover {
-    background: var(--primary-hover);
+    background-color: #333333;
     transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 button:active {
@@ -253,13 +175,13 @@ button:active {
 }
 
 button:disabled {
-    background: var(--text-light);
+    background-color: #999999;
     cursor: not-allowed;
     transform: none;
-    box-shadow: var(--shadow-sm);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-/* 模态框样式 */
+/* 模态框 */
 .modal {
     display: none;
     position: fixed;
@@ -268,11 +190,9 @@ button:disabled {
     top: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
+    background-color: rgba(0, 0, 0, 0.6);
     align-items: center;
     justify-content: center;
-    animation: fadeIn var(--transition-normal);
 }
 
 .modal.show {
@@ -280,16 +200,15 @@ button:disabled {
 }
 
 .modal-content {
-    background: var(--background-primary);
+    background: #ffffff;
     padding: 2rem;
-    border-radius: var(--radius-xl);
+    border-radius: 12px;
     width: 90%;
     max-width: 600px;
-    box-shadow: var(--shadow-xl);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
     position: relative;
     max-height: 90vh;
     overflow-y: auto;
-    animation: slideInUp var(--transition-normal);
 }
 
 .photo-management-modal {
@@ -297,14 +216,14 @@ button:disabled {
 }
 
 .close-button {
-    color: var(--text-light);
+    color: #999999;
     position: absolute;
     top: 1rem;
     right: 1.5rem;
     font-size: 2rem;
     font-weight: 300;
     cursor: pointer;
-    transition: all var(--transition-fast);
+    transition: all 0.2s ease;
     width: 2.5rem;
     height: 2.5rem;
     display: flex;
@@ -314,12 +233,11 @@ button:disabled {
 }
 
 .close-button:hover {
-    color: var(--danger-color);
-    background: rgba(239, 68, 68, 0.1);
-    transform: rotate(90deg);
+    color: #000000;
+    background-color: #f5f5f5;
 }
 
-/* 照片查看器样式 */
+/* 照片查看器 */
 .photo-viewer-container {
     display: flex;
     align-items: center;
@@ -331,36 +249,35 @@ button:disabled {
 .photo-display-area {
     width: 100%;
     height: 450px;
-    background: var(--background-secondary);
+    background-color: #fafafa;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: var(--radius-xl);
+    border-radius: 12px;
     overflow: hidden;
     position: relative;
-    box-shadow: var(--shadow-lg);
-    border: 2px solid var(--border-color);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: 2px solid #e5e5e5;
 }
 
 .current-photo-img {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
-    border-radius: var(--radius-lg);
-    transition: all var(--transition-normal);
+    border-radius: 8px;
 }
 
 #no-photos-message {
-    color: var(--text-light);
-    font-size: var(--font-size-lg);
+    color: #999999;
+    font-size: 1.125rem;
     text-align: center;
     padding: 2rem;
     font-weight: 500;
 }
 
 .nav-button {
-    background: rgba(0, 0, 0, 0.8);
-    color: white;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #ffffff;
     border: none;
     font-size: 1.5rem;
     cursor: pointer;
@@ -370,9 +287,8 @@ button:disabled {
     top: 50%;
     transform: translateY(-50%);
     z-index: 1001;
-    transition: all var(--transition-normal);
-    backdrop-filter: blur(8px);
-    box-shadow: var(--shadow-lg);
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
     width: 3.5rem;
     height: 3.5rem;
     display: flex;
@@ -381,7 +297,7 @@ button:disabled {
 }
 
 .nav-button:hover {
-    background: rgba(0, 0, 0, 1);
+    background-color: #000000;
     transform: translateY(-50%) scale(1.1);
 }
 
@@ -407,92 +323,70 @@ button:disabled {
     flex: 1;
     max-width: 200px;
     padding: 0.875rem 1.25rem;
-    font-size: var(--font-size-sm);
+    font-size: 0.875rem;
     margin: 0;
 }
 
 .retake-btn {
-    background: var(--secondary-color);
+    background-color: #666666;
 }
 
 .retake-btn:hover {
-    background: var(--text-secondary);
+    background-color: #555555;
 }
 
 .delete-btn {
-    background: var(--primary-color);
+    background-color: #000000;
 }
 
 .delete-btn:hover {
-    background: var(--primary-hover);
+    background-color: #333333;
 }
 
-/* 模态框操作区域 */
+/* 模态框操作 */
 .modal-actions {
     text-align: center;
     margin-top: 2rem;
     padding-top: 2rem;
-    border-top: 2px solid var(--border-color);
+    border-top: 2px solid #e5e5e5;
 }
 
 .add-photo-btn {
-    background: var(--primary-color);
+    background-color: #000000;
     padding: 1rem 2rem;
-    font-size: var(--font-size-base);
+    font-size: 1rem;
     font-weight: 600;
-    border-radius: var(--radius-lg);
+    border-radius: 8px;
     display: inline-flex;
     align-items: center;
     gap: 0.75rem;
-    box-shadow: var(--shadow-lg);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .add-photo-btn:hover {
-    background: var(--primary-hover);
+    background-color: #333333;
 }
 
 .plus-icon {
-    font-size: var(--font-size-xl);
+    font-size: 1.25rem;
     font-weight: 300;
 }
 
 .photo-limit-info {
     text-align: center;
     margin-top: 1rem;
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
+    color: #666666;
+    font-size: 0.875rem;
 }
 
-/* 动画效果 */
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@keyframes slideInUp {
-    from {
-        transform: translateY(2rem);
-        opacity: 0;
-    }
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
-}
-
-/* 移动端专用样式 */
+/* 移动端响应式 */
 @media screen and (max-width: 768px) {
-    :root {
-        --font-size-3xl: 1.5rem;
-        --font-size-2xl: 1.25rem;
-    }
-    
     .container {
         padding: 1rem 0.75rem;
     }
     
     h1 {
-        font-size: var(--font-size-2xl);
+        font-size: 1.5rem;
         margin-bottom: 1.5rem;
     }
     
@@ -500,7 +394,7 @@ button:disabled {
         width: 95%;
         padding: 1.5rem;
         margin: 0.5rem;
-        border-radius: var(--radius-lg);
+        border-radius: 8px;
     }
     
     .photo-display-area {
@@ -534,11 +428,11 @@ button:disabled {
     
     button {
         padding: 0.875rem 1.25rem;
-        font-size: var(--font-size-sm);
+        font-size: 0.875rem;
     }
 }
 
-/* 移动端表格卡片样式 */
+/* 移动端表格卡片 */
 @media screen and (max-width: 600px) {
     .table-container {
         background: none;
@@ -557,14 +451,14 @@ button:disabled {
     }
     
     tr {
-        background: var(--background-primary);
+        background: #ffffff;
         border: none;
-        border-radius: var(--radius-lg);
+        border-radius: 8px;
         margin-bottom: 1.25rem;
         padding: 1.5rem;
-        box-shadow: var(--shadow-lg);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         position: relative;
-        transition: all var(--transition-normal);
+        transition: all 0.2s ease;
         overflow: hidden;
     }
     
@@ -575,17 +469,17 @@ button:disabled {
         left: 0;
         right: 0;
         height: 4px;
-        background: var(--primary-color);
+        background-color: #000000;
     }
     
     tr:hover {
         transform: translateY(-2px);
-        box-shadow: var(--shadow-xl);
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
     }
     
     td {
         border: none;
-        border-bottom: 1px solid var(--border-color);
+        border-bottom: 1px solid #e5e5e5;
         position: relative;
         padding: 0.875rem 0;
         display: flex;
@@ -600,8 +494,8 @@ button:disabled {
     td:before {
         content: attr(data-label);
         font-weight: 600;
-        color: var(--text-secondary);
-        font-size: var(--font-size-sm);
+        color: #666666;
+        font-size: 0.875rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         flex: 0 0 45%;
@@ -616,14 +510,14 @@ button:disabled {
         flex: 1;
         max-width: 120px;
         padding: 0.5rem 0.75rem;
-        border-radius: var(--radius-md);
-        border: 2px solid var(--border-color);
-        font-size: var(--font-size-sm);
+        border-radius: 6px;
+        border: 2px solid #e5e5e5;
+        font-size: 0.875rem;
     }
     
     .photo-display-area {
         height: 280px;
-        border-radius: var(--radius-lg);
+        border-radius: 8px;
     }
     
     td .photo-thumbnail {
@@ -634,11 +528,11 @@ button:disabled {
     
     .photo-count {
         margin-right: 0.5rem;
-        font-size: var(--font-size-xs);
+        font-size: 0.75rem;
     }
 }
 
-/* 超小屏幕优化 */
+/* 超小屏幕 */
 @media screen and (max-width: 380px) {
     .container {
         padding: 0.75rem 0.5rem;
@@ -651,7 +545,7 @@ button:disabled {
     
     td:before {
         flex: 0 0 40%;
-        font-size: var(--font-size-xs);
+        font-size: 0.75rem;
     }
     
     .modal-content {
@@ -664,58 +558,81 @@ button:disabled {
     
     button {
         padding: 0.75rem 1rem;
-        font-size: var(--font-size-xs);
+        font-size: 0.75rem;
     }
 }
 
-/* 深色主题支持 */
+/* 深色模式 */
 @media (prefers-color-scheme: dark) {
-    :root {
-        --background-primary: #000000;
-        --background-secondary: #1a1a1a;
-        --background-tertiary: #2a2a2a;
-        --text-primary: #ffffff;
-        --text-secondary: #cccccc;
-        --text-light: #999999;
-        --border-color: #333333;
-        --border-hover: #555555;
-        --primary-color: #ffffff;
-        --primary-hover: #cccccc;
+    body {
+        background-color: #000000;
+        color: #ffffff;
     }
     
-    body {
-        background: #000000;
+    .table-container,
+    .modal-content,
+    tr {
+        background-color: #000000;
+    }
+    
+    tr:nth-child(even) {
+        background-color: #1a1a1a;
+    }
+    
+    tr:hover {
+        background-color: #2a2a2a;
     }
     
     th {
-        background: var(--text-primary);
-        color: var(--background-primary);
+        background-color: #ffffff;
+        color: #000000;
+    }
+    
+    .photo-display-area {
+        background-color: #1a1a1a;
+        border-color: #333333;
+    }
+    
+    #status-container {
+        background-color: #1a1a1a;
+        border-left-color: #ffffff;
+    }
+    
+    .weight-cell input {
+        background-color: #000000;
+        border-color: #333333;
+        color: #ffffff;
+    }
+    
+    .weight-cell input:focus {
+        border-color: #ffffff;
+        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
     }
     
     button {
-        background: var(--text-primary);
-        color: var(--background-primary);
+        background-color: #ffffff;
+        color: #000000;
     }
     
     button:hover {
-        background: var(--text-secondary);
+        background-color: #cccccc;
     }
     
     .nav-button {
-        background: rgba(255, 255, 255, 0.8);
-        color: black;
+        background-color: rgba(255, 255, 255, 0.8);
+        color: #000000;
     }
     
     .nav-button:hover {
-        background: rgba(255, 255, 255, 1);
+        background-color: #ffffff;
     }
 }
 
 /* 打印样式 */
 @media print {
     body {
-        background: white;
-        color: black;
+        background: #ffffff !important;
+        color: #000000 !important;
     }
     
     .modal, button, .nav-button {
