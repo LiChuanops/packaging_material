@@ -1,25 +1,25 @@
 /* 全局变量定义 */
 :root {
-    --primary-color: #2563eb;
-    --primary-hover: #1d4ed8;
-    --secondary-color: #64748b;
-    --success-color: #10b981;
-    --success-hover: #059669;
-    --warning-color: #f59e0b;
-    --warning-hover: #d97706;
-    --danger-color: #ef4444;
-    --danger-hover: #dc2626;
-    --info-color: #06b6d4;
-    --info-hover: #0891b2;
+    --primary-color: #6366f1;
+    --primary-hover: #4f46e5;
+    --secondary-color: #6b7280;
+    --success-color: #22c55e;
+    --success-hover: #16a34a;
+    --warning-color: #f97316;
+    --warning-hover: #ea580c;
+    --danger-color: #f43f5e;
+    --danger-hover: #e11d48;
+    --info-color: #14b8a6;
+    --info-hover: #0d9488;
     
     --background-primary: #ffffff;
-    --background-secondary: #f8fafc;
-    --background-tertiary: #f1f5f9;
-    --text-primary: #1e293b;
-    --text-secondary: #64748b;
-    --text-light: #94a3b8;
-    --border-color: #e2e8f0;
-    --border-hover: #cbd5e1;
+    --background-secondary: #fefefe;
+    --background-tertiary: #f9fafb;
+    --text-primary: #111827;
+    --text-secondary: #6b7280;
+    --text-light: #9ca3af;
+    --border-color: #f3f4f6;
+    --border-hover: #e5e7eb;
     
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
@@ -53,7 +53,7 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
     margin: 0;
     padding: 0;
-    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
     color: var(--text-primary);
     line-height: 1.6;
     font-size: var(--font-size-base);
@@ -75,7 +75,7 @@ h1 {
     font-weight: 700;
     margin: 0 0 2rem 0;
     text-align: center;
-    background: linear-gradient(135deg, var(--primary-color), var(--info-color));
+    background: linear-gradient(135deg, #6366f1, #14b8a6);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -126,7 +126,7 @@ tr:nth-child(even) {
 }
 
 tr:hover {
-    background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
     transform: translateY(-1px);
     box-shadow: var(--shadow-md);
     cursor: pointer;
@@ -199,8 +199,8 @@ td .photo-thumbnail:hover {
 /* 状态和同步区域 */
 #status-container {
     padding: 1.25rem;
-    background: linear-gradient(135deg, #eff6ff, #dbeafe);
-    border-left: 4px solid var(--info-color);
+    background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+    border-left: 4px solid var(--success-color);
     border-radius: var(--radius-lg);
     margin: 2rem 0;
     box-shadow: var(--shadow-sm);
@@ -209,7 +209,7 @@ td .photo-thumbnail:hover {
 #status-message {
     margin: 0;
     font-weight: 500;
-    color: var(--info-color);
+    color: var(--success-color);
 }
 
 /* 现代化按钮样式 */
@@ -362,7 +362,7 @@ button:disabled {
 }
 
 .nav-button {
-    background: rgba(37, 99, 235, 0.8);
+    background: rgba(99, 102, 241, 0.9);
     color: white;
     border: none;
     font-size: 1.5rem;
@@ -384,7 +384,7 @@ button:disabled {
 }
 
 .nav-button:hover {
-    background: rgba(37, 99, 235, 1);
+    background: rgba(99, 102, 241, 1);
     transform: translateY(-50%) scale(1.1);
 }
 
@@ -566,7 +566,7 @@ button:disabled {
         left: 0;
         right: 0;
         height: 4px;
-        background: linear-gradient(135deg, var(--primary-color), var(--info-color));
+        background: linear-gradient(135deg, #6366f1, #14b8a6);
     }
     
     tr:hover {
@@ -662,18 +662,18 @@ button:disabled {
 /* 深色主题支持 */
 @media (prefers-color-scheme: dark) {
     :root {
-        --background-primary: #1e293b;
-        --background-secondary: #334155;
-        --background-tertiary: #475569;
-        --text-primary: #f1f5f9;
-        --text-secondary: #cbd5e1;
-        --text-light: #94a3b8;
-        --border-color: #475569;
-        --border-hover: #64748b;
+        --background-primary: #1f2937;
+        --background-secondary: #374151;
+        --background-tertiary: #4b5563;
+        --text-primary: #f9fafb;
+        --text-secondary: #d1d5db;
+        --text-light: #9ca3af;
+        --border-color: #4b5563;
+        --border-hover: #6b7280;
     }
     
     body {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
     }
     
     .current-photo-img {
