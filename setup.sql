@@ -7,6 +7,7 @@ CREATE TABLE packaging_material (
   viet_name TEXT,
   eng_name TEXT,
   uom TEXT,
+  weight NUMERIC,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   version TEXT,
   status TEXT,

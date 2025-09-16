@@ -34,6 +34,8 @@ let currentProductId = null;
 let currentPhotos = [];
 let currentPhotoIndex = 0; // New state for the viewer
 let photoToDeleteId = null; // For tracking which photo to delete when retaking
+let isSyncing = false; // Global sync flag
+
 
 // --- INDEXEDDB ---
 let db;
@@ -94,6 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    syncButton.addEventListener('click', syncAllData); // Changed to syncAllData
 
     // Initialize IndexedDB
     initDB();
@@ -135,52 +138,85 @@ function renderTable(products) {
     tableBody.innerHTML = ''; // Clear existing data
 
     if (!products || products.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="3">No products found.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="4">No products found.</td></tr>';
         return;
     }
-
-    const headers = ["Name", "UOM", "Photos"];
 
     products.forEach(product => {
         const row = document.createElement('tr');
         row.dataset.id = product.id;
-        row.addEventListener('click', () => {
-            openPhotoModal(product);
+
+        // Prevent modal from opening when clicking on input
+        row.addEventListener('click', (event) => {
+            if (event.target.tagName.toLowerCase() !== 'input') {
+                openPhotoModal(product);
+            }
         });
 
+        // Create cells in order
+        const nameCell = document.createElement('td');
+        nameCell.dataset.label = "Name";
+        nameCell.textContent = product.viet_name;
+        nameCell.classList.add('viet-name-cell');
+        row.appendChild(nameCell);
+
+        const uomCell = document.createElement('td');
+        uomCell.dataset.label = "UOM";
+        uomCell.textContent = product.uom;
+        row.appendChild(uomCell);
+
+        const weightCell = document.createElement('td');
+        weightCell.dataset.label = "Weight";
+        const weightInput = document.createElement('input');
+        weightInput.type = 'number';
+        weightInput.value = product.weight === null || product.weight === undefined ? '' : product.weight;
+        weightInput.placeholder = 'N/A';
+        weightInput.dataset.productId = product.id;
+        weightInput.addEventListener('change', handleWeightChange);
+        weightCell.appendChild(weightInput);
+        row.appendChild(weightCell);
+
+        const photoCell = document.createElement('td');
+        photoCell.dataset.label = "Photos";
         const photoCount = product.packaging_photo ? product.packaging_photo.length : 0;
-        const cells = [
-            product.viet_name,
-            product.uom,
-            photoCount
-        ];
-
-        cells.forEach((cellData, index) => {
-            const cell = document.createElement('td');
-            cell.dataset.label = headers[index];
-
-            if (headers[index] === 'Photos') {
-                if (photoCount > 0) {
-                    cell.innerHTML = `<span class="photo-count">${photoCount} photo(s)</span>`;
-                    // Show first photo as thumbnail
-                    if (product.packaging_photo[0].image_url) {
-                        cell.innerHTML += `<img src="${product.packaging_photo[0].image_url}" alt="Product Photo" class="photo-thumbnail">`;
-                    }
-                } else {
-                    cell.innerHTML = '<span class="no-photos">No Photos</span>';
-                }
-            } else {
-                cell.textContent = cellData;
+        if (photoCount > 0) {
+            photoCell.innerHTML = `<span class="photo-count">${photoCount} photo(s)</span>`;
+            if (product.packaging_photo[0].image_url) {
+                photoCell.innerHTML += `<img src="${product.packaging_photo[0].image_url}" alt="Product Photo" class="photo-thumbnail">`;
             }
-
-            if (headers[index] === 'Name') {
-                cell.classList.add('viet-name-cell');
-            }
-            row.appendChild(cell);
-        });
+        } else {
+            photoCell.innerHTML = '<span class="no-photos">No Photos</span>';
+        }
+        row.appendChild(photoCell);
 
         tableBody.appendChild(row);
     });
+}
+
+async function handleWeightChange(event) {
+    const input = event.target;
+    const productId = input.dataset.productId;
+    const newWeight = input.value.trim() === '' ? null : parseFloat(input.value);
+
+    if (input.value.trim() !== '' && isNaN(newWeight)) {
+        statusMessage.textContent = 'Invalid weight. Please enter a number.';
+        // Revert to old value
+        const { data, error } = await supabaseClient.from('packaging_material').select('weight').eq('id', productId).single();
+        if (!error) {
+            input.value = data.weight || '';
+        }
+        return;
+    }
+
+    statusMessage.textContent = 'Saving weight change...';
+    try {
+        await saveWeightUpdate(productId, newWeight);
+        if (navigator.onLine) {
+            await syncAllData();
+        }
+    } catch (error) {
+        statusMessage.textContent = `Error saving weight: ${error.message}`;
+    }
 }
 
 function showPhoto(index) {
@@ -278,14 +314,14 @@ async function deletePhoto(photoId) {
         // Refresh the current product data
         const { data: updatedProduct } = await supabaseClient
             .from('packaging_material')
-            .select(`
-                *,
+            .select(
+                `*,
                 packaging_photo (
                     id,
                     image_url,
                     created_at
-                )
-            `)
+                )`
+            )
             .eq('id', currentProductId)
             .single();
 
@@ -367,19 +403,20 @@ function compressImage(file) {
 
 function initDB() {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open('PWA_Photo_App_DB', 2); // Increment version
+        const request = indexedDB.open('PWA_Photo_App_DB', 3); // Version 3
 
         request.onupgradeneeded = (event) => {
             db = event.target.result;
             
-            // Delete old store if exists
-            if (db.objectStoreNames.contains('pending_photos')) {
-                db.deleteObjectStore('pending_photos');
+            if (!db.objectStoreNames.contains('pending_photos')) {
+                const photoStore = db.createObjectStore('pending_photos', { keyPath: 'id' });
+                photoStore.createIndex('productId', 'productId', { unique: false });
             }
-            
-            // Create new store with updated structure
-            const store = db.createObjectStore('pending_photos', { keyPath: 'id' });
-            store.createIndex('productId', 'productId', { unique: false });
+
+            if (!db.objectStoreNames.contains('pending_updates')) {
+                const updateStore = db.createObjectStore('pending_updates', { keyPath: 'id' });
+                updateStore.createIndex('productId', 'productId', { unique: false });
+            }
         };
 
         request.onsuccess = (event) => {
@@ -402,33 +439,42 @@ window.addEventListener('offline', updateOnlineStatus);
 
 function updateOnlineStatus() {
     const isOnline = navigator.onLine;
-    statusMessage.textContent = isOnline ? 'You are online.' : 'You are offline. Photos will be saved locally.';
+    statusMessage.textContent = isOnline ? 'You are online.' : 'You are offline. Data will be saved locally.';
     updateSyncUIVisibility();
 }
 
-syncButton.addEventListener('click', syncPendingPhotos);
-
 async function updateSyncUIVisibility() {
-    if (!db) {
-        return;
-    }
-    try {
-        const transaction = db.transaction(['pending_photos'], 'readonly');
-        const store = transaction.objectStore('pending_photos');
-        const countRequest = store.count();
-        countRequest.onsuccess = () => {
-            const count = countRequest.result;
-            if (count > 0 && navigator.onLine) {
-                syncButton.style.display = 'block';
-                syncButton.textContent = `Sync ${count} Pending Photo(s)`;
-            } else {
-                syncButton.style.display = 'none';
+    if (!db) return;
+
+    const count = async (storeName) => {
+        return new Promise((resolve, reject) => {
+            if (!db.objectStoreNames.contains(storeName)) {
+                resolve(0);
+                return;
             }
-        };
-        countRequest.onerror = (event) => {
-            console.error("Could not count pending photos:", event.target.error);
+            try {
+                const transaction = db.transaction([storeName], 'readonly');
+                const store = transaction.objectStore(storeName);
+                const request = store.count();
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            } catch (error) {
+                reject(error);
+            }
+        });
+    };
+
+    try {
+        const photoCount = await count('pending_photos');
+        const updateCount = await count('pending_updates');
+        const totalCount = photoCount + updateCount;
+
+        if (totalCount > 0 && navigator.onLine) {
+            syncButton.style.display = 'block';
+            syncButton.textContent = `Sync ${totalCount} Pending Item(s)`;
+        } else {
             syncButton.style.display = 'none';
-        };
+        }
     } catch (error) {
         console.error("Error accessing IndexedDB for UI update:", error);
         syncButton.style.display = 'none';
@@ -447,30 +493,81 @@ function dataURLtoBlob(dataurl) {
     return new Blob([u8arr], { type: mime });
 }
 
-let isSyncing = false;
-async function syncPendingPhotos() {
+async function syncAllData() {
     if (isSyncing || !navigator.onLine) return;
     isSyncing = true;
     syncButton.textContent = 'Syncing...';
     syncButton.disabled = true;
 
     try {
-        if (!db) await initDB();
-        const transaction = db.transaction(['pending_photos'], 'readonly');
-        const store = transaction.objectStore('pending_photos');
-        const pendingPhotos = await new Promise((resolve, reject) => {
-            const request = store.getAll();
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
-        });
+        await syncPendingUpdates();
+        await syncPendingPhotos();
 
-        if (pendingPhotos.length === 0) {
-            isSyncing = false;
-            updateSyncUIVisibility();
-            return;
+        statusMessage.textContent = 'All pending items have been synced!';
+        fetchProducts(); // Refresh the table with new data
+
+    } catch (error) {
+        console.error('Sync failed:', error);
+        statusMessage.textContent = `Sync failed: ${error.message}. Will try again later.`;
+    } finally {
+        isSyncing = false;
+        syncButton.disabled = false;
+        updateSyncUIVisibility();
+    }
+}
+
+async function syncPendingUpdates() {
+    if (!db) await initDB();
+    if (!db.objectStoreNames.contains('pending_updates')) return;
+
+    const transaction = db.transaction(['pending_updates'], 'readonly');
+    const store = transaction.objectStore('pending_updates');
+    const pendingUpdates = await new Promise((resolve, reject) => {
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+
+    if (pendingUpdates.length > 0) {
+        console.log(`Syncing ${pendingUpdates.length} weight update(s)...`);
+
+        for (const update of pendingUpdates) {
+            console.log(`--- Syncing weight for product ID: ${update.productId} ---`);
+
+            const { error } = await supabaseClient
+                .from('packaging_material')
+                .update({ weight: update.weight })
+                .eq('id', update.productId);
+
+            if (error) {
+                console.error('Update Error:', error);
+                throw new Error(`Update failed: ${error.message}`);
+            }
+
+            console.log('Update successful.');
+
+            const deleteTransaction = db.transaction(['pending_updates'], 'readwrite');
+            const deleteStore = deleteTransaction.objectStore('pending_updates');
+            deleteStore.delete(update.id);
+            console.log(`--- Successfully synced and removed local update for product ${update.productId} ---`);
         }
+    }
+}
 
-        statusMessage.textContent = `Syncing ${pendingPhotos.length} photo(s)...`;
+async function syncPendingPhotos() {
+    if (!db) await initDB();
+    if (!db.objectStoreNames.contains('pending_photos')) return;
+
+    const transaction = db.transaction(['pending_photos'], 'readonly');
+    const store = transaction.objectStore('pending_photos');
+    const pendingPhotos = await new Promise((resolve, reject) => {
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+
+    if (pendingPhotos.length > 0) {
+        console.log(`Syncing ${pendingPhotos.length} photo(s)...`);
 
         for (const photo of pendingPhotos) {
             console.log(`--- Syncing photo for product ID: ${photo.productId} ---`);
@@ -554,19 +651,9 @@ async function syncPendingPhotos() {
 
             console.log(`--- Successfully synced and removed local photo for product ${photo.productId} ---`);
         }
-
-        statusMessage.textContent = 'All pending photos have been synced!';
-        fetchProducts(); // Refresh the table with new photos
-
-    } catch (error) {
-        console.error('Sync failed:', error);
-        statusMessage.textContent = `Sync failed: ${error.message}. Will try again later.`;
-    } finally {
-        isSyncing = false;
-        syncButton.disabled = false;
-        updateSyncUIVisibility();
     }
 }
+
 
 // --- PHOTO SAVE ---
 async function savePhotoToDB(productId, imageData, photoToDeleteId = null) {
@@ -593,7 +680,7 @@ async function savePhotoToDB(productId, imageData, photoToDeleteId = null) {
             // Update the UI to show the pending status
             const row = document.querySelector(`tr[data-id='${productId}']`);
             if (row) {
-                const photoCell = row.querySelector('td:last-child');
+                const photoCell = row.querySelector('td[data-label="Photos"]');
                 if (photoCell) {
                     photoCell.innerHTML = '<span class="pending-upload">Waiting Sync</span>';
                 }
@@ -611,4 +698,33 @@ async function savePhotoToDB(productId, imageData, photoToDeleteId = null) {
         console.error('Failed to save photo locally:', error);
         statusMessage.textContent = 'Error: Could not save photo for offline use.';
     }
+}
+
+async function saveWeightUpdate(productId, weight) {
+    if (!db) await initDB();
+
+    const updateData = {
+        id: `update_${productId}_${Date.now()}`,
+        productId: productId,
+        weight: weight,
+        timestamp: new Date().toISOString()
+    };
+
+    const transaction = db.transaction(['pending_updates'], 'readwrite');
+    const store = transaction.objectStore('pending_updates');
+    store.add(updateData);
+
+    return new Promise((resolve, reject) => {
+        transaction.oncomplete = () => {
+            console.log(`Weight update for product ${productId} saved to IndexedDB.`);
+            statusMessage.textContent = `Weight update saved locally.`;
+            updateSyncUIVisibility();
+            resolve();
+        };
+        transaction.onerror = (event) => {
+            console.error('Error saving weight update to DB:', event.target.error);
+            statusMessage.textContent = 'Error: Could not save weight update locally.';
+            reject(event.target.error);
+        };
+    });
 }
