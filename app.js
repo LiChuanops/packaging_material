@@ -658,37 +658,45 @@ async function processUpdateBatch(keys, onComplete) {
 
 async function syncSingleUpdate(key) {
     let update;
+    // Step 1: Read data in a short, readonly transaction
     try {
-        const tx = db.transaction(['pending_updates'], 'readwrite');
-        const store = tx.objectStore('pending_updates');
-
+        const readTx = db.transaction(['pending_updates'], 'readonly');
+        const store = readTx.objectStore('pending_updates');
         update = await new Promise((resolve, reject) => {
             const request = store.get(key);
-            if (!request) return reject('Request failed');
+            if (!request) return reject('Request to get update failed');
             request.onsuccess = () => resolve(request.result);
             request.onerror = (e) => reject(e.target.error);
         });
+    } catch (readError) {
+        console.error(`Failed to read pending update for key ${key}:`, readError);
+        return; // Cannot proceed
+    }
 
-        if (!update) return;
+    if (!update) return; // Already processed or failed to read
 
-        // Sync logic for a single update
+    try {
+        // Step 2: Perform network operations
         const { error } = await supabaseClient
             .from('packaging_material')
             .update({ weight: update.weight })
             .eq('item_code', update.item_code);
         if (error) throw error;
 
-        // On success, delete from IDB
-        const delReq = store.delete(key);
-        await new Promise(resolve => {
-            delReq.onsuccess = resolve;
-            tx.oncomplete = resolve;
-        });
-        console.log(`Successfully synced update for product ${update.item_code}`);
+        // Step 3: If successful, open a new transaction to delete the item
+        const deleteTx = db.transaction(['pending_updates'], 'readwrite');
+        const deleteStore = deleteTx.objectStore('pending_updates');
+        deleteStore.delete(key);
 
-    } catch (error) {
-        const itemCode = update ? update.item_code : 'unknown';
-        console.error(`Failed to sync update for product ${itemCode} (key: ${key}). Error:`, error.message, ". Will retry later.");
+        await new Promise(resolve => {
+            deleteTx.oncomplete = () => {
+                console.log(`Successfully synced and deleted update for product ${update.item_code}`);
+                resolve();
+            };
+        });
+
+    } catch (syncError) {
+        console.error(`Failed to sync update for product ${update.item_code} (key: ${key}). Error:`, syncError.message, ". Will retry later.");
     }
 }
 
@@ -753,20 +761,25 @@ async function processPhotoBatch(keys, onComplete) {
 
 async function syncSinglePhoto(key) {
     let photo;
+    // Step 1: Read data in a short, readonly transaction
     try {
-        const tx = db.transaction(['pending_photos'], 'readwrite');
-        const store = tx.objectStore('pending_photos');
-
+        const readTx = db.transaction(['pending_photos'], 'readonly');
+        const store = readTx.objectStore('pending_photos');
         photo = await new Promise((resolve, reject) => {
             const request = store.get(key);
-            if (!request) return reject('Request failed');
+            if (!request) return reject('Request to get photo failed');
             request.onsuccess = () => resolve(request.result);
             request.onerror = (e) => reject(e.target.error);
         });
+    } catch (readError) {
+        console.error(`Failed to read pending photo for key ${key}:`, readError);
+        return; // Cannot proceed
+    }
 
-        if (!photo) return; // Already processed
+    if (!photo) return; // Already processed or failed to read
 
-        // Step 0: Delete old photo if it's a replacement
+    try {
+        // Step 2: Perform all network operations, outside of any IDB transaction
         if (photo.photoToDeleteId) {
             const { data: photoToDelete, error: fetchError } = await supabaseClient
                 .from('packaging_photo').select('image_url').eq('id', photo.photoToDeleteId).single();
@@ -777,7 +790,6 @@ async function syncSinglePhoto(key) {
             await supabaseClient.from('packaging_photo').delete().eq('id', photo.photoToDeleteId);
         }
 
-        // Main sync logic
         const blob = dataURLtoBlob(photo.imageData);
         const filePath = `public/${photo.item_code}_${Date.now() % 10000000}.jpg`;
         const { error: uploadError } = await supabaseClient.storage.from('packaging_photo').upload(filePath, blob);
@@ -789,17 +801,21 @@ async function syncSinglePhoto(key) {
         const { error: dbError } = await supabaseClient.from('packaging_photo').insert({ item_code: photo.item_code, image_url: urlData.publicUrl });
         if (dbError) throw dbError;
 
-        // On success, delete from IDB
-        const delReq = store.delete(key);
-        await new Promise(resolve => {
-            delReq.onsuccess = resolve;
-            tx.oncomplete = resolve; // Ensure transaction is complete
-        });
-        console.log(`Successfully synced photo for product ${photo.item_code}`);
+        // Step 3: If all network ops succeed, open a new transaction to delete the item
+        const deleteTx = db.transaction(['pending_photos'], 'readwrite');
+        const deleteStore = deleteTx.objectStore('pending_photos');
+        deleteStore.delete(key);
 
-    } catch (error) {
-        const itemCode = photo ? photo.item_code : 'unknown';
-        console.error(`Failed to sync photo for product ${itemCode} (key: ${key}). Error:`, error.message, ". Will retry later.");
+        await new Promise(resolve => {
+            deleteTx.oncomplete = () => {
+                console.log(`Successfully synced and deleted photo for product ${photo.item_code}`);
+                resolve();
+            };
+        });
+
+    } catch (syncError) {
+        // This catch block now correctly handles only network/Supabase errors
+        console.error(`Failed to sync photo for product ${photo.item_code} (key: ${key}). Error:`, syncError.message, ". Will retry later.");
     }
 }
 
