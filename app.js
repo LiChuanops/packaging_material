@@ -598,140 +598,205 @@ async function syncAllData() {
 }
 
 async function syncPendingUpdates() {
-    if (!db) await initDB();
-    if (!db.objectStoreNames.contains('pending_updates')) return;
+    if (!db || !db.objectStoreNames.contains('pending_updates')) return Promise.resolve();
 
-    const transaction = db.transaction(['pending_updates'], 'readonly');
-    const store = transaction.objectStore('pending_updates');
-    const pendingUpdates = await new Promise((resolve, reject) => {
-        const request = store.getAll();
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
+    return new Promise((resolve, reject) => {
+        try {
+            const tx = db.transaction(['pending_updates'], 'readonly');
+            const store = tx.objectStore('pending_updates');
+            const keysRequest = store.getAllKeys();
 
-    if (pendingUpdates.length > 0) {
-        console.log(`Syncing ${pendingUpdates.length} weight update(s)...`);
-
-        for (const update of pendingUpdates) {
-            console.log(`--- Syncing weight for product ID: ${update.productId} ---`);
-
-            const { error } = await supabaseClient
-                .from('packaging_material')
-                .update({ weight: update.weight })
-                .eq('id', update.productId);
-
-            if (error) {
-                console.error('Update Error:', error);
-                throw new Error(`Update failed: ${error.message}`);
+            keysRequest.onsuccess = () => {
+                const allKeys = keysRequest.result;
+                if (allKeys.length === 0) {
+                    resolve();
+                    return;
+                }
+                console.log(`Found ${allKeys.length} pending updates to sync.`);
+                processUpdateBatch(allKeys, resolve);
+            };
+            keysRequest.onerror = (e) => {
+                console.error("Error fetching keys for update sync:", e.target.error);
+                reject(e.target.error);
             }
-
-            console.log('Update successful.');
-
-            const deleteTransaction = db.transaction(['pending_updates'], 'readwrite');
-            const deleteStore = deleteTransaction.objectStore('pending_updates');
-            deleteStore.delete(update.id);
-            console.log(`--- Successfully synced and removed local update for product ${update.productId} ---`);
+        } catch (error) {
+            console.error("Failed to start update sync transaction:", error);
+            reject(error);
         }
+    });
+}
+
+async function processUpdateBatch(keys, onComplete) {
+    if (keys.length === 0) {
+        console.log("Update sync finished.");
+        updateSyncUIVisibility();
+        if (onComplete) onComplete();
+        return;
+    }
+
+    const BATCH_SIZE = 10; // Can be a bit larger for small data
+    const batchKeys = keys.slice(0, BATCH_SIZE);
+    const remainingKeys = keys.slice(BATCH_SIZE);
+
+    console.log(`Processing a batch of ${batchKeys.length} updates... (${remainingKeys.length} remaining)`);
+
+    const promises = batchKeys.map(key => syncSingleUpdate(key));
+    await Promise.all(promises);
+
+    updateSyncUIVisibility();
+
+    if (remainingKeys.length > 0) {
+        setTimeout(() => processUpdateBatch(remainingKeys, onComplete), 500); // Shorter delay
+    } else {
+        console.log("All update batches processed.");
+        if (onComplete) onComplete();
+    }
+}
+
+async function syncSingleUpdate(key) {
+    let update;
+    try {
+        const tx = db.transaction(['pending_updates'], 'readwrite');
+        const store = tx.objectStore('pending_updates');
+
+        update = await new Promise((resolve, reject) => {
+            const request = store.get(key);
+            if (!request) return reject('Request failed');
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = (e) => reject(e.target.error);
+        });
+
+        if (!update) return;
+
+        // Sync logic for a single update
+        const { error } = await supabaseClient
+            .from('packaging_material')
+            .update({ weight: update.weight })
+            .eq('id', update.productId);
+        if (error) throw error;
+
+        // On success, delete from IDB
+        const delReq = store.delete(key);
+        await new Promise(resolve => {
+            delReq.onsuccess = resolve;
+            tx.oncomplete = resolve;
+        });
+        console.log(`Successfully synced update for product ${update.productId}`);
+
+    } catch (error) {
+        const productId = update ? update.productId : 'unknown';
+        console.error(`Failed to sync update for product ${productId} (key: ${key}). Error:`, error.message, ". Will retry later.");
     }
 }
 
 async function syncPendingPhotos() {
-    if (!db) await initDB();
-    if (!db.objectStoreNames.contains('pending_photos')) return;
+    if (!db || !db.objectStoreNames.contains('pending_photos')) return Promise.resolve();
 
-    const transaction = db.transaction(['pending_photos'], 'readonly');
-    const store = transaction.objectStore('pending_photos');
-    const pendingPhotos = await new Promise((resolve, reject) => {
-        const request = store.getAll();
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
+    return new Promise((resolve, reject) => {
+        try {
+            const tx = db.transaction(['pending_photos'], 'readonly');
+            const store = tx.objectStore('pending_photos');
+            const keysRequest = store.getAllKeys();
 
-    if (pendingPhotos.length > 0) {
-        console.log(`Syncing ${pendingPhotos.length} photo(s)...`);
-
-        for (const photo of pendingPhotos) {
-            console.log(`--- Syncing photo for product ID: ${photo.productId} ---`);
-
-            // Step 0: Delete the old photo if it's a replacement
-            if (photo.photoToDeleteId) {
-                try {
-                    // Get the photo to delete
-                    const { data: photoToDelete, error: fetchError } = await supabaseClient
-                        .from('packaging_photo')
-                        .select('image_url')
-                        .eq('id', photo.photoToDeleteId)
-                        .single();
-
-                    if (!fetchError && photoToDelete.image_url) {
-                        const oldFilePath = new URL(photoToDelete.image_url).pathname.split('/packaging_photo/')[1];
-                        if (oldFilePath) {
-                            console.log(`Deleting old photo: ${oldFilePath}`);
-                            await supabaseClient.storage.from('packaging_photo').remove([oldFilePath]);
-                        }
-                    }
-
-                    // Delete from database
-                    await supabaseClient
-                        .from('packaging_photo')
-                        .delete()
-                        .eq('id', photo.photoToDeleteId);
-                        
-                } catch (error) {
-                    console.error("Could not delete old photo. It might be orphaned.", error);
+            keysRequest.onsuccess = () => {
+                const allKeys = keysRequest.result;
+                if (allKeys.length === 0) {
+                    resolve(); // No keys, resolve immediately
+                    return;
                 }
+                console.log(`Found ${allKeys.length} pending photos to sync.`);
+                // Pass the main promise's resolve function to the batch processor
+                processPhotoBatch(allKeys, resolve);
+            };
+            keysRequest.onerror = (e) => {
+                console.error("Error fetching keys for photo sync:", e.target.error);
+                reject(e.target.error); // Reject on error
             }
-
-            const blob = dataURLtoBlob(photo.imageData);
-            const filePath = `public/${photo.productId}_${Date.now()}.jpg`;
-            console.log(`Generated file path: ${filePath}`);
-
-            // 1. Upload to Storage
-            const { error: uploadError } = await supabaseClient.storage
-                .from('packaging_photo')
-                .upload(filePath, blob);
-
-            if (uploadError) {
-                console.error('Upload Error:', uploadError);
-                throw new Error(`Upload failed: ${uploadError.message}`);
-            }
-            console.log('Upload successful.');
-
-            // 2. Get Public URL
-            const { data: urlData } = supabaseClient.storage
-                .from('packaging_photo')
-                .getPublicUrl(filePath);
-
-            if (!urlData || !urlData.publicUrl) {
-                console.error('Could not get public URL.');
-                throw new Error('Could not get public URL.');
-            }
-            const publicUrl = urlData.publicUrl;
-            console.log(`Got public URL: ${publicUrl}`);
-
-            // 3. Insert into packaging_photo table
-            console.log(`Inserting photo record for material ID: ${photo.productId}`);
-            const { data: insertData, error: dbError } = await supabaseClient
-                .from('packaging_photo')
-                .insert({
-                    material_id: photo.productId,
-                    image_url: publicUrl
-                })
-                .select();
-
-            if (dbError) {
-                console.error('Database Insert Error:', dbError);
-                throw new Error(`Database insert failed: ${dbError.message}`);
-            }
-            console.log('Database insert successful. Response:', insertData);
-
-            // 4. Delete from IndexedDB
-            const deleteTransaction = db.transaction(['pending_photos'], 'readwrite');
-            const deleteStore = deleteTransaction.objectStore('pending_photos');
-            deleteStore.delete(photo.id);
-
-            console.log(`--- Successfully synced and removed local photo for product ${photo.productId} ---`);
+        } catch (error) {
+            console.error("Failed to start photo sync transaction:", error);
+            reject(error);
         }
+    });
+}
+
+async function processPhotoBatch(keys, onComplete) {
+    if (keys.length === 0) {
+        console.log("Photo sync finished.");
+        updateSyncUIVisibility(); // Update UI when all batches are done
+        if (onComplete) onComplete();
+        return;
+    }
+
+    const BATCH_SIZE = 5;
+    const batchKeys = keys.slice(0, BATCH_SIZE);
+    const remainingKeys = keys.slice(BATCH_SIZE);
+
+    console.log(`Processing a batch of ${batchKeys.length} photos... (${remainingKeys.length} remaining)`);
+
+    const promises = batchKeys.map(key => syncSinglePhoto(key));
+    await Promise.all(promises);
+
+    // Update UI after each batch
+    updateSyncUIVisibility();
+
+    // Process next batch recursively
+    if (remainingKeys.length > 0) {
+        setTimeout(() => processPhotoBatch(remainingKeys, onComplete), 1000); // Small delay between batches
+    } else {
+        console.log("All photo batches processed.");
+        if (onComplete) onComplete();
+    }
+}
+
+async function syncSinglePhoto(key) {
+    let photo;
+    try {
+        const tx = db.transaction(['pending_photos'], 'readwrite');
+        const store = tx.objectStore('pending_photos');
+
+        photo = await new Promise((resolve, reject) => {
+            const request = store.get(key);
+            if (!request) return reject('Request failed');
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = (e) => reject(e.target.error);
+        });
+
+        if (!photo) return; // Already processed
+
+        // Step 0: Delete old photo if it's a replacement
+        if (photo.photoToDeleteId) {
+            const { data: photoToDelete, error: fetchError } = await supabaseClient
+                .from('packaging_photo').select('image_url').eq('id', photo.photoToDeleteId).single();
+            if (!fetchError && photoToDelete && photoToDelete.image_url) {
+                const oldFilePath = new URL(photoToDelete.image_url).pathname.split('/packaging_photo/')[1];
+                if (oldFilePath) await supabaseClient.storage.from('packaging_photo').remove([oldFilePath]);
+            }
+            await supabaseClient.from('packaging_photo').delete().eq('id', photo.photoToDeleteId);
+        }
+
+        // Main sync logic
+        const blob = dataURLtoBlob(photo.imageData);
+        const filePath = `public/${photo.productId}_${Date.now()}.jpg`;
+        const { error: uploadError } = await supabaseClient.storage.from('packaging_photo').upload(filePath, blob);
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabaseClient.storage.from('packaging_photo').getPublicUrl(filePath);
+        if (!urlData || !urlData.publicUrl) throw new Error('Could not get public URL.');
+
+        const { error: dbError } = await supabaseClient.from('packaging_photo').insert({ material_id: photo.productId, image_url: urlData.publicUrl });
+        if (dbError) throw dbError;
+
+        // On success, delete from IDB
+        const delReq = store.delete(key);
+        await new Promise(resolve => {
+            delReq.onsuccess = resolve;
+            tx.oncomplete = resolve; // Ensure transaction is complete
+        });
+        console.log(`Successfully synced photo for product ${photo.productId}`);
+
+    } catch (error) {
+        const productId = photo ? photo.productId : 'unknown';
+        console.error(`Failed to sync photo for product ${productId} (key: ${key}). Error:`, error.message, ". Will retry later.");
     }
 }
 
