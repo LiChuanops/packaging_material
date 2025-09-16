@@ -30,7 +30,7 @@ const deletePhotoButton = document.getElementById('delete-photo-button');
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- STATE ---
-let currentProductId = null;
+let currentProduct = null;
 let currentPhotos = [];
 let currentPhotoIndex = 0; // New state for the viewer
 let photoToDeleteId = null; // For tracking which photo to delete when retaking
@@ -225,7 +225,7 @@ function renderTable(products) {
 
     products.forEach(product => {
         const row = document.createElement('tr');
-        row.dataset.id = product.id;
+        row.dataset.itemCode = product.item_code;
 
         // Create cells in order
         const nameCell = document.createElement('td');
@@ -246,7 +246,6 @@ function renderTable(products) {
         weightInput.type = 'number';
         weightInput.value = product.weight === null || product.weight === undefined ? '' : product.weight;
         weightInput.placeholder = 'N/A';
-        weightInput.dataset.productId = product.id;
         weightInput.addEventListener('change', handleWeightChange);
         weightCell.appendChild(weightInput);
         row.appendChild(weightCell);
@@ -271,13 +270,16 @@ function renderTable(products) {
 
 async function handleWeightChange(event) {
     const input = event.target;
-    const productId = input.dataset.productId;
+    const row = input.closest('tr');
+    if (!row) return;
+
+    const itemCode = row.dataset.itemCode;
     const newWeight = input.value.trim() === '' ? null : parseFloat(input.value);
 
     if (input.value.trim() !== '' && isNaN(newWeight)) {
         statusMessage.textContent = 'Invalid weight. Please enter a number.';
-        // Revert to old value
-        const { data, error } = await supabaseClient.from('packaging_material').select('weight').eq('id', productId).single();
+        // Revert to old value - this now needs to fetch by item_code
+        const { data, error } = await supabaseClient.from('packaging_material').select('weight').eq('item_code', itemCode).single();
         if (!error) {
             input.value = data.weight || '';
         }
@@ -286,7 +288,7 @@ async function handleWeightChange(event) {
 
     statusMessage.textContent = 'Saving weight change...';
     try {
-        await saveWeightUpdate(productId, newWeight);
+        await saveWeightUpdate(itemCode, newWeight);
         if (navigator.onLine) {
             await syncAllData();
         }
@@ -318,7 +320,7 @@ function showPhoto(index) {
 }
 
 function openPhotoModal(product) {
-    currentProductId = product.id;
+    currentProduct = product;
     currentPhotos = product.packaging_photo || [];
     currentPhotoIndex = 0;
     
@@ -337,7 +339,7 @@ function openPhotoModal(product) {
 
 function closePhotoModal() {
     photoViewModal.classList.remove('show');
-    currentProductId = null;
+    currentProduct = null;
     currentPhotos = [];
     currentPhotoIndex = 0;
     photoToDeleteId = null;
@@ -398,7 +400,7 @@ async function deletePhoto(photoId) {
                     created_at
                 )`
             )
-            .eq('id', currentProductId)
+            .eq('id', currentProduct.id)
             .single();
 
         if (updatedProduct) {
@@ -417,7 +419,7 @@ async function deletePhoto(photoId) {
 // This function will be called when the user selects a file
 async function handlePhotoTaken(event) {
     const file = event.target.files[0];
-    if (!file || !currentProductId) {
+    if (!file || !currentProduct) {
         return;
     }
 
@@ -425,7 +427,8 @@ async function handlePhotoTaken(event) {
 
     try {
         const compressedDataUrl = await compressImage(file);
-        await savePhotoToDB(currentProductId, compressedDataUrl, photoToDeleteId);
+        // Pass the whole product object to savePhotoToDB
+        await savePhotoToDB(currentProduct, compressedDataUrl, photoToDeleteId);
     } catch (error) {
         console.error('Failed to process photo:', error);
         statusMessage.textContent = `Error: ${error.message}`;
@@ -672,7 +675,7 @@ async function syncSingleUpdate(key) {
         const { error } = await supabaseClient
             .from('packaging_material')
             .update({ weight: update.weight })
-            .eq('id', update.productId);
+            .eq('item_code', update.item_code);
         if (error) throw error;
 
         // On success, delete from IDB
@@ -681,11 +684,11 @@ async function syncSingleUpdate(key) {
             delReq.onsuccess = resolve;
             tx.oncomplete = resolve;
         });
-        console.log(`Successfully synced update for product ${update.productId}`);
+        console.log(`Successfully synced update for product ${update.item_code}`);
 
     } catch (error) {
-        const productId = update ? update.productId : 'unknown';
-        console.error(`Failed to sync update for product ${productId} (key: ${key}). Error:`, error.message, ". Will retry later.");
+        const itemCode = update ? update.item_code : 'unknown';
+        console.error(`Failed to sync update for product ${itemCode} (key: ${key}). Error:`, error.message, ". Will retry later.");
     }
 }
 
@@ -776,14 +779,14 @@ async function syncSinglePhoto(key) {
 
         // Main sync logic
         const blob = dataURLtoBlob(photo.imageData);
-        const filePath = `public/${photo.productId}_${Date.now()}.jpg`;
+        const filePath = `public/${photo.item_code}_${Date.now() % 10000000}.jpg`;
         const { error: uploadError } = await supabaseClient.storage.from('packaging_photo').upload(filePath, blob);
         if (uploadError) throw uploadError;
 
         const { data: urlData } = supabaseClient.storage.from('packaging_photo').getPublicUrl(filePath);
         if (!urlData || !urlData.publicUrl) throw new Error('Could not get public URL.');
 
-        const { error: dbError } = await supabaseClient.from('packaging_photo').insert({ material_id: photo.productId, image_url: urlData.publicUrl });
+        const { error: dbError } = await supabaseClient.from('packaging_photo').insert({ item_code: photo.item_code, image_url: urlData.publicUrl });
         if (dbError) throw dbError;
 
         // On success, delete from IDB
@@ -792,20 +795,21 @@ async function syncSinglePhoto(key) {
             delReq.onsuccess = resolve;
             tx.oncomplete = resolve; // Ensure transaction is complete
         });
-        console.log(`Successfully synced photo for product ${photo.productId}`);
+        console.log(`Successfully synced photo for product ${photo.item_code}`);
 
     } catch (error) {
-        const productId = photo ? photo.productId : 'unknown';
-        console.error(`Failed to sync photo for product ${productId} (key: ${key}). Error:`, error.message, ". Will retry later.");
+        const itemCode = photo ? photo.item_code : 'unknown';
+        console.error(`Failed to sync photo for product ${itemCode} (key: ${key}). Error:`, error.message, ". Will retry later.");
     }
 }
 
 
 // --- PHOTO SAVE ---
-async function savePhotoToDB(productId, imageData, photoToDeleteId = null) {
+async function savePhotoToDB(product, imageData, photoToDeleteId = null) {
     const photoData = {
         id: `photo_${Date.now()}`,
-        productId: productId,
+        productId: product.id, // Keep for reference if needed, though item_code is primary now
+        item_code: product.item_code,
         imageData: imageData,
         photoToDeleteId: photoToDeleteId
     };
@@ -819,12 +823,12 @@ async function savePhotoToDB(productId, imageData, photoToDeleteId = null) {
         store.add(photoData);
 
         transaction.oncomplete = () => {
-            console.log(`Photo for product ${productId} saved to IndexedDB.`);
+            console.log(`Photo for product ${product.item_code} saved to IndexedDB.`);
             statusMessage.textContent = `Photo saved locally.`;
             updateSyncUIVisibility();
 
             // Update the UI to show the pending status
-            const row = document.querySelector(`tr[data-id='${productId}']`);
+            const row = document.querySelector(`tr[data-item-code='${product.item_code}']`);
             if (row) {
                 const photoCell = row.querySelector('td[data-label="Photos"]');
                 if (photoCell) {
@@ -846,12 +850,12 @@ async function savePhotoToDB(productId, imageData, photoToDeleteId = null) {
     }
 }
 
-async function saveWeightUpdate(productId, weight) {
+async function saveWeightUpdate(itemCode, weight) {
     if (!db) await initDB();
 
     const updateData = {
-        id: `update_${productId}_${Date.now()}`,
-        productId: productId,
+        id: `update_${itemCode}_${Date.now()}`,
+        item_code: itemCode,
         weight: weight,
         timestamp: new Date().toISOString()
     };
@@ -862,7 +866,7 @@ async function saveWeightUpdate(productId, weight) {
 
     return new Promise((resolve, reject) => {
         transaction.oncomplete = () => {
-            console.log(`Weight update for product ${productId} saved to IndexedDB.`);
+            console.log(`Weight update for product ${itemCode} saved to IndexedDB.`);
             statusMessage.textContent = `Weight update saved locally.`;
             updateSyncUIVisibility();
             resolve();
